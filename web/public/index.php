@@ -2,6 +2,13 @@
 
 declare(strict_types=1);
 
+if (!is_file(__DIR__ . '/../vendor/autoload.php')) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Instalação incompleta: execute "composer install" na pasta web.';
+    exit;
+}
+
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/../templates/helpers.php';
 
