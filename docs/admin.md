@@ -1,7 +1,10 @@
 # Módulo admin (etapa 1)
 
 ## Modelo
-- Um banco de controle `ReportService` por ambiente SQL Server, com o dicionário separado por `conexao_id`.
+- Um banco de controle `ReportService` por ambiente SQL Server.
+- **Dicionário único (matriz):** os bancos de todos os clientes têm a mesma estrutura, então tabelas, campos, descrições,
+  valores e relações não pertencem a nenhum cliente. O prefixo (`MTTB`) e as exclusões também são globais
+  (menu "Escopo do dicionário"). A conexão do cliente serve só para executar os relatórios (e ler metadados de referência).
 - Um IIS pode atender vários clientes. O cliente é definido pela URL: `relatorios-<slug>.elogica.info` (coberto por certificado `*.elogica.info`).
   O `slug` é único em `dbo.conexao`; o modelo do host fica em `TENANT_HOST_TEMPLATE` (`.env`).
   O host `relatorios.elogica.info` (sem cliente) serve o `/admin`.
@@ -10,7 +13,7 @@
   (ponto de troca: `Elogica\Auth\Auth::attempt`).
 
 ## Instalação
-1. Criar o banco `ReportService` e rodar `db/migrations/*.sql` em ordem.
+1. Criar o banco `ReportService` e rodar `db/migrations/*.sql` em ordem (001, depois 002).
 2. `cp .env.example .env` e preencher. O `.env` fica fora da pasta pública: ao lado de `src/` (em `web/`) ou na raiz do repositório; vale o primeiro encontrado. Gerar `APP_KEY` com `php web/bin/gerar-chave.php`.
 3. `cd web && composer install --no-dev`.
 4. Criar o primeiro admin: `php web/bin/criar-usuario.php admin "Nome" admin`.
@@ -26,7 +29,7 @@
 `php web/tests/run.php` (resolução de host, criptografia e validação do formulário; sem dependências).
 
 ## Próximas etapas do admin
-1. Sincronizar tabelas e campos do banco do cliente (filtro `MTTB%` + exclusões).
+1. Sincronizar tabelas e campos a partir de um banco de referência (qualquer cliente), aplicando o escopo.
 2. Importar a documentação HTML (descrição, valores possíveis).
 3. Tela de tabelas/campos com revisão.
-4. Exportar/importar a matriz entre clientes, com prévia de diferenças e aplicação tabela a tabela ou em lote.
+4. Na execução, checar se as tabelas do dicionário existem no banco do cliente (detecta cliente desatualizado).

@@ -6,8 +6,10 @@ declare(strict_types=1);
 require __DIR__ . '/../src/Security/Crypto.php';
 require __DIR__ . '/../src/Tenant/TenantResolver.php';
 require __DIR__ . '/../src/Admin/ConexaoForm.php';
+require __DIR__ . '/../src/Admin/EscopoForm.php';
 
 use Elogica\Admin\ConexaoForm;
+use Elogica\Admin\EscopoForm;
 use Elogica\Security\Crypto;
 use Elogica\Tenant\TenantResolver;
 
@@ -62,17 +64,21 @@ check('crypto adulterado falha', lanca(fn () => $c->decrypt(substr($enc, 0, -4) 
 check('chave inválida rejeitada', lanca(fn () => new Crypto('curta')));
 
 // --- ConexaoForm ---
-$ok = ['slug' => 'Campinas', 'cliente' => 'COHAB Campinas', 'servidor' => 'SRV01\\SQL2019', 'banco' => 'SGH_CAMP', 'usuario_readonly' => 'rs_ro', 'filtro_prefixo' => 'mttb', 'senha' => 'x', 'exclusoes' => "MTTBCOB\n%[_]BKP%\n\n", 'ativo' => 'on'];
+$ok = ['slug' => 'Campinas', 'cliente' => 'COHAB Campinas', 'servidor' => 'SRV01\\SQL2019', 'banco' => 'SGH_CAMP', 'usuario_readonly' => 'rs_ro', 'senha' => 'x', 'ativo' => 'on'];
 $v = ConexaoForm::validar($ok, true);
-check('form válido', $v['erros'] === [] && $v['dados']['slug'] === 'campinas' && $v['dados']['filtro_prefixo'] === 'MTTB');
-check('form exclusões', $v['exclusoes'] === ['MTTBCOB', '%[_]BKP%']);
+check('form válido', $v['erros'] === [] && $v['dados']['slug'] === 'campinas');
 check('form ativo', $v['dados']['ativo'] === true && ConexaoForm::validar(['ativo' => null] + $ok, true)['dados']['ativo'] === false);
 check('form slug inválido', ConexaoForm::validar(['slug' => 'a b'] + $ok, true)['erros'] !== []);
 check('form injeção no servidor', ConexaoForm::validar(['servidor' => 'srv;Database=master'] + $ok, true)['erros'] !== []);
 check('form injeção no banco', ConexaoForm::validar(['banco' => 'db}; --'] + $ok, true)['erros'] !== []);
 check('form senha obrigatória ao criar', ConexaoForm::validar(['senha' => ''] + $ok, true)['erros'] !== []);
 check('form senha opcional ao editar', ConexaoForm::validar(['senha' => ''] + $ok, false)['erros'] === []);
-check('form padrão de exclusão inválido', ConexaoForm::validar(['exclusoes' => "a'; DROP TABLE x"] + $ok, true)['erros'] !== []);
+
+// --- EscopoForm ---
+$e = EscopoForm::validar(['prefixo' => 'mttb', 'exclusoes' => "MTTBCOB\n%[_]BKP%\n\n"]);
+check('escopo válido', $e['erros'] === [] && $e['prefixo'] === 'MTTB' && $e['exclusoes'] === ['MTTBCOB', '%[_]BKP%']);
+check('escopo prefixo inválido', EscopoForm::validar(['prefixo' => 'MT TB', 'exclusoes' => ''])['erros'] !== []);
+check('escopo padrão inválido', EscopoForm::validar(['prefixo' => 'MTTB', 'exclusoes' => "a'; DROP TABLE x"])['erros'] !== []);
 
 echo $falhas === 0 ? "OK: {$total} testes\n" : "{$falhas} de {$total} falharam\n";
 exit($falhas === 0 ? 0 : 1);

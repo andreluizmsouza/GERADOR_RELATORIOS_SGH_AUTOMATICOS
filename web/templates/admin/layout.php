@@ -12,6 +12,12 @@
   <div class="container">
     <a class="navbar-brand" href="/admin">Elógica Relatórios · Admin</a>
     <?php if ($auth->user()): ?>
+      <ul class="navbar-nav flex-row gap-3 me-auto ms-3">
+        <li class="nav-item"><a class="nav-link" href="/admin">Clientes</a></li>
+        <li class="nav-item"><a class="nav-link" href="/admin/dicionario/escopo">Escopo do dicionário</a></li>
+      </ul>
+    <?php endif; ?>
+    <?php if ($auth->user()): ?>
       <form method="post" action="/admin/logout" class="d-flex align-items-center gap-2 m-0">
         <span class="text-light small"><?= e($auth->user()['nome']) ?></span>
         <input type="hidden" name="csrf" value="<?= e($auth->csrfToken()) ?>">

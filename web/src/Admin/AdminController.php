@@ -7,6 +7,7 @@ namespace Elogica\Admin;
 use Elogica\Auth\Auth;
 use Elogica\Db\ClientConnection;
 use Elogica\Db\ConexaoRepository;
+use Elogica\Db\DicionarioConfigRepository;
 use Elogica\Tenant\TenantResolver;
 
 final class AdminController
@@ -14,6 +15,7 @@ final class AdminController
     public function __construct(
         private readonly Auth $auth,
         private readonly ConexaoRepository $conexoes,
+        private readonly DicionarioConfigRepository $escopo,
         private readonly string $templates,
         private readonly TenantResolver $tenants,
     ) {
@@ -38,6 +40,7 @@ final class AdminController
         match (true) {
             $rota === '/logout' && $method === 'POST' => $this->logout(),
             $rota === '/' => $this->render('dashboard', ['conexoes' => $this->conexoes->all()]),
+            $rota === '/dicionario/escopo' => $this->escopo($method),
             $rota === '/conexoes/nova' => $this->form($method, null),
             preg_match('#^/conexoes/(\d+)$#', $rota, $m) === 1 => $this->form($method, (int) $m[1]),
             preg_match('#^/conexoes/(\d+)/testar$#', $rota, $m) === 1 && $method === 'POST' => $this->testar((int) $m[1]),
@@ -73,8 +76,7 @@ final class AdminController
             $this->abort(404, 'Conexão não encontrada.');
         }
         $erros = [];
-        $dados = $atual ?? ['slug' => '', 'cliente' => '', 'servidor' => '', 'banco' => '', 'usuario_readonly' => '', 'filtro_prefixo' => 'MTTB', 'ativo' => 1];
-        $exclusoes = $id === null ? ConexaoRepository::EXCLUSOES_PADRAO : $this->conexoes->exclusoes($id);
+        $dados = $atual ?? ['slug' => '', 'cliente' => '', 'servidor' => '', 'banco' => '', 'usuario_readonly' => '', 'ativo' => 1];
 
         if ($method === 'POST') {
             $post = $_POST;
@@ -85,19 +87,40 @@ final class AdminController
                 $erros[] = 'Já existe um cliente com este identificador (URL).';
             }
             $dados = $v['dados'];
-            $exclusoes = $v['exclusoes'];
             if ($erros === []) {
                 $senha = (string) ($_POST['senha'] ?? '');
                 if ($id === null) {
-                    $id = $this->conexoes->create($dados, $senha, $exclusoes);
+                    $id = $this->conexoes->create($dados, $senha);
                 } else {
-                    $this->conexoes->update($id, $dados, $senha, $exclusoes);
+                    $this->conexoes->update($id, $dados, $senha);
                 }
                 $_SESSION['flash'] = 'Conexão salva.';
                 $this->redirect('/admin/conexoes/' . $id);
             }
         }
-        $this->render('conexao', ['id' => $id, 'dados' => $dados, 'exclusoes' => $exclusoes, 'erros' => $erros]);
+        $this->render('conexao', ['id' => $id, 'dados' => $dados, 'erros' => $erros]);
+    }
+
+    private function escopo(string $method): void
+    {
+        $erros = [];
+        $prefixo = $this->escopo->prefixo();
+        $exclusoes = $this->escopo->exclusoes();
+        if ($exclusoes === []) {
+            $exclusoes = DicionarioConfigRepository::EXCLUSOES_PADRAO;
+        }
+        if ($method === 'POST') {
+            $v = EscopoForm::validar($_POST);
+            $erros = $v['erros'];
+            $prefixo = $v['prefixo'];
+            $exclusoes = $v['exclusoes'];
+            if ($erros === []) {
+                $this->escopo->salvar($prefixo, $exclusoes);
+                $_SESSION['flash'] = 'Escopo do dicionário salvo.';
+                $this->redirect('/admin/dicionario/escopo');
+            }
+        }
+        $this->render('escopo', ['prefixo' => $prefixo, 'exclusoes' => $exclusoes, 'erros' => $erros]);
     }
 
     private function testar(int $id): void
@@ -106,7 +129,7 @@ final class AdminController
         if ($c === null) {
             $this->abort(404, 'Conexão não encontrada.');
         }
-        $r = ClientConnection::test((string) $c['servidor'], (string) $c['banco'], (string) $c['usuario_readonly'], $this->conexoes->senha($id), (string) $c['filtro_prefixo']);
+        $r = ClientConnection::test((string) $c['servidor'], (string) $c['banco'], (string) $c['usuario_readonly'], $this->conexoes->senha($id), $this->escopo->prefixo());
         $_SESSION['flash'] = $r['mensagem'];
         $_SESSION['flash_ok'] = $r['ok'];
         $this->redirect('/admin/conexoes/' . $id);
