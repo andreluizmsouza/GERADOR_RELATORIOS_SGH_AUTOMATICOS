@@ -34,14 +34,18 @@ function lanca(callable $f): bool
 }
 
 // --- TenantResolver ---
-$r = new TenantResolver('/^relatorio\.([a-z0-9-]+)\.elogica\.info$/');
-check('slug simples', $r->slugFromHost('relatorio.campinas.elogica.info') === 'campinas');
-check('slug com porta e caixa', $r->slugFromHost('Relatorio.Campinas.Elogica.Info:8443') === 'campinas');
-check('slug com hífen', $r->slugFromHost('relatorio.cohab-sp.elogica.info') === 'cohab-sp');
-check('host de outro domínio', $r->slugFromHost('relatorio.campinas.evil.com') === null);
-check('subdomínio extra', $r->slugFromHost('x.relatorio.campinas.elogica.info') === null);
+$r = new TenantResolver('relatorios-{slug}.elogica.info');
+check('slug simples', $r->slugFromHost('relatorios-campinas.elogica.info') === 'campinas');
+check('slug com porta e caixa', $r->slugFromHost('Relatorios-Campinas.Elogica.Info:8443') === 'campinas');
+check('slug com hífen', $r->slugFromHost('relatorios-cohab-sp.elogica.info') === 'cohab-sp');
+check('host do admin sem cliente', $r->slugFromHost('relatorios.elogica.info') === null);
+check('host de outro domínio', $r->slugFromHost('relatorios-campinas.evil.com') === null);
+check('sufixo malicioso', $r->slugFromHost('relatorios-campinas.elogica.info.evil.com') === null);
+check('subdomínio extra', $r->slugFromHost('x.relatorios-campinas.elogica.info') === null);
 check('host vazio', $r->slugFromHost('') === null);
-check('slug curto demais', $r->slugFromHost('relatorio.a.elogica.info') === null);
+check('slug curto demais', $r->slugFromHost('relatorios-a.elogica.info') === null);
+check('hostFor', $r->hostFor('campinas') === 'relatorios-campinas.elogica.info');
+check('modelo sem {slug} rejeitado', lanca(fn () => new TenantResolver('relatorios.elogica.info')));
 check('slug validação', TenantResolver::isValidSlug('cehab-rj') && !TenantResolver::isValidSlug('Campinas') && !TenantResolver::isValidSlug('a_b'));
 
 // --- Crypto ---

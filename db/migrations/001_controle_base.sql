@@ -16,7 +16,7 @@ CREATE TABLE dbo.usuario (
 );
 GO
 
--- Um registro por cliente. O slug identifica o cliente na URL (relatorio.<slug>.elogica.info).
+-- Um registro por cliente. O slug identifica o cliente na URL (relatorios-<slug>.elogica.info).
 IF OBJECT_ID(N'dbo.conexao', N'U') IS NULL
 CREATE TABLE dbo.conexao (
     id               INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_conexao PRIMARY KEY,

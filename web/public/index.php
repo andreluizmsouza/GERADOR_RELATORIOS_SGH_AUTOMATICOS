@@ -33,14 +33,15 @@ try {
     $auth->start();
     $conexoes = new ConexaoRepository($pdo, Crypto::fromConfig());
 
+    $resolver = new TenantResolver(Config::get('TENANT_HOST_TEMPLATE', TenantResolver::MODELO_PADRAO) ?? TenantResolver::MODELO_PADRAO);
+
     // O admin é único e independe do host.
     if ($path === '/admin' || str_starts_with($path, '/admin/')) {
-        (new AdminController($auth, $conexoes, dirname(__DIR__) . '/templates'))->handle($method, $path);
+        (new AdminController($auth, $conexoes, dirname(__DIR__) . '/templates', $resolver))->handle($method, $path);
         exit;
     }
 
     // Demais rotas: o cliente é definido pela URL.
-    $resolver = new TenantResolver(Config::get('TENANT_HOST_REGEX', '/^relatorio\.([a-z0-9-]+)\.elogica\.info$/') ?? '');
     $slug = $resolver->slugFromHost($_SERVER['HTTP_HOST'] ?? '');
     $cliente = $slug === null ? null : $conexoes->findAtivaBySlug($slug);
     if ($cliente === null) {

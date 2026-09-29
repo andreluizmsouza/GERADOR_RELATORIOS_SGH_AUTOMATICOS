@@ -7,6 +7,7 @@ namespace Elogica\Admin;
 use Elogica\Auth\Auth;
 use Elogica\Db\ClientConnection;
 use Elogica\Db\ConexaoRepository;
+use Elogica\Tenant\TenantResolver;
 
 final class AdminController
 {
@@ -14,6 +15,7 @@ final class AdminController
         private readonly Auth $auth,
         private readonly ConexaoRepository $conexoes,
         private readonly string $templates,
+        private readonly TenantResolver $tenants,
     ) {
     }
 
@@ -112,6 +114,7 @@ final class AdminController
     private function render(string $view, array $vars, bool $layout = true): void
     {
         $auth = $this->auth;
+        $hostFor = fn (string $slug): string => $this->tenants->hostFor($slug);
         $flash = $_SESSION['flash'] ?? null;
         $flashOk = $_SESSION['flash_ok'] ?? true;
         unset($_SESSION['flash'], $_SESSION['flash_ok']);
