@@ -21,7 +21,8 @@ use Elogica\Db\UsuarioRepository;
 use Elogica\Security\Crypto;
 use Elogica\Tenant\TenantResolver;
 
-Config::load(dirname(__DIR__, 2));
+// .env fica fora da pasta pública: ao lado de src/ (web/) ou na raiz do repositório.
+Config::load(dirname(__DIR__), dirname(__DIR__, 2));
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';

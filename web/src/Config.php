@@ -9,10 +9,18 @@ use RuntimeException;
 
 final class Config
 {
-    public static function load(string $dir): void
+    /** Carrega o .env do primeiro diretório que o contiver (o primeiro da lista tem prioridade). */
+    public static function load(string ...$dirs): void
     {
-        if (class_exists(Dotenv::class) && is_file($dir . '/.env')) {
-            Dotenv::createImmutable($dir)->safeLoad();
+        if (!class_exists(Dotenv::class)) {
+            return;
+        }
+        foreach ($dirs as $dir) {
+            if (is_file($dir . '/.env')) {
+                Dotenv::createImmutable($dir)->safeLoad();
+
+                return;
+            }
         }
     }
 

@@ -10,7 +10,7 @@
 
 ## Instalação
 1. Criar o banco `ReportService` e rodar `db/migrations/*.sql` em ordem.
-2. `cp .env.example .env` e preencher. Gerar `APP_KEY` com `php web/bin/gerar-chave.php`.
+2. `cp .env.example .env` e preencher. O `.env` fica fora da pasta pública: ao lado de `src/` (em `web/`) ou na raiz do repositório; vale o primeiro encontrado. Gerar `APP_KEY` com `php web/bin/gerar-chave.php`.
 3. `cd web && composer install --no-dev`.
 4. Criar o primeiro admin: `php web/bin/criar-usuario.php admin "Nome" admin`.
 5. IIS: raiz do site em `web/public` (o `web.config` já reescreve para `index.php`); DNS/binding `*.elogica.info`.

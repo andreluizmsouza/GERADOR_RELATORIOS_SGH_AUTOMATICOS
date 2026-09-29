@@ -9,7 +9,7 @@ use Elogica\Config;
 use Elogica\Db\Control;
 use Elogica\Db\UsuarioRepository;
 
-Config::load(dirname(__DIR__, 2));
+Config::load(dirname(__DIR__), dirname(__DIR__, 2));
 
 [$script, $login, $nome, $perfil] = $argv + [null, null, null, 'consulta'];
 if (!$login || !$nome || !in_array($perfil, ['admin', 'consulta'], true)) {
