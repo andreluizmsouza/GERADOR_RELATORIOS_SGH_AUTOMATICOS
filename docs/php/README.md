@@ -14,7 +14,13 @@ Instalação em `C:\PHP8.4` (drivers `php_sqlsrv_84_nts_x64.dll` e `php_pdo_sqls
    & "$env:windir\system32\inetsrv\appcmd.exe" set config /section:system.webServer/fastCgi /+"[fullPath='C:\PHP8.4\php-cgi.exe'].environmentVariables.[name='PHP_FCGI_MAX_REQUESTS',value='10000']"
    ```
 
-6. O site aponta para `web\public` (o `web.config` de lá já traz o manipulador `*.php`, o rewrite e o limite de upload).
-7. Conferir: `C:\PHP8.4\php.exe -m` deve listar `pdo_sqlsrv`, `sqlsrv`, `sodium`, `mbstring`, `openssl`.
+6. Desbloquear a seção `handlers`, que o IIS bloqueia por padrão nos `web.config` dos sites (sem isso: "Esta seção de configuração não pode ser usada nesse caminho"):
+
+   ```powershell
+   & "$env:windir\system32\inetsrv\appcmd.exe" unlock config -section:system.webServer/handlers
+   ```
+
+7. O site aponta para `web\public` (o `web.config` de lá já traz o manipulador `*.php`, o rewrite e o limite de upload).
+8. Conferir: `C:\PHP8.4\php.exe -m` deve listar `pdo_sqlsrv`, `sqlsrv`, `sodium`, `mbstring`, `openssl`.
 
 O cookie de sessão é `Secure` (`session.cookie_secure = 1`): acessar o admin por HTTPS.
