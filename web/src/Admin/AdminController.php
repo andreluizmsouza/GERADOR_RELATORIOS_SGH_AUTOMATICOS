@@ -8,6 +8,8 @@ use Elogica\Auth\Auth;
 use Elogica\Db\ClientConnection;
 use Elogica\Db\ConexaoRepository;
 use Elogica\Db\DicionarioConfigRepository;
+use Elogica\Metadata\DicionarioRepository;
+use Elogica\Metadata\SyncService;
 use Elogica\Tenant\TenantResolver;
 
 final class AdminController
@@ -16,6 +18,8 @@ final class AdminController
         private readonly Auth $auth,
         private readonly ConexaoRepository $conexoes,
         private readonly DicionarioConfigRepository $escopo,
+        private readonly DicionarioRepository $dicionario,
+        private readonly SyncService $sync,
         private readonly string $templates,
         private readonly TenantResolver $tenants,
     ) {
@@ -40,6 +44,8 @@ final class AdminController
         match (true) {
             $rota === '/logout' && $method === 'POST' => $this->logout(),
             $rota === '/' => $this->render('dashboard', ['conexoes' => $this->conexoes->all()]),
+            $rota === '/dicionario' => $this->tabelas(),
+            $rota === '/dicionario/sincronizar' => $this->sincronizar($method),
             $rota === '/dicionario/escopo' => $this->escopo($method),
             $rota === '/conexoes/nova' => $this->form($method, null),
             preg_match('#^/conexoes/(\d+)$#', $rota, $m) === 1 => $this->form($method, (int) $m[1]),
@@ -99,6 +105,29 @@ final class AdminController
             }
         }
         $this->render('conexao', ['id' => $id, 'dados' => $dados, 'erros' => $erros]);
+    }
+
+    private function tabelas(): void
+    {
+        $filtro = trim((string) ($_GET['q'] ?? ''));
+        $this->render('tabelas', ['filtro' => $filtro, 'tabelas' => $this->dicionario->listarTabelas($filtro)]);
+    }
+
+    private function sincronizar(string $method): void
+    {
+        $resultado = null;
+        $erro = null;
+        $conexaoId = (int) ($_POST['conexao_id'] ?? 0);
+        if ($method === 'POST') {
+            set_time_limit(300);
+            try {
+                $resultado = $this->sync->executar($conexaoId, ($_POST['acao'] ?? '') === 'aplicar');
+            } catch (\Throwable $e) {
+                error_log((string) $e);
+                $erro = 'Não foi possível ler o banco do cliente. Use "Testar conexão" no cadastro do cliente e confira o log do PHP.';
+            }
+        }
+        $this->render('sincronizar', ['conexoes' => $this->conexoes->all(), 'conexaoId' => $conexaoId, 'resultado' => $resultado, 'erro' => $erro]);
     }
 
     private function escopo(string $method): void

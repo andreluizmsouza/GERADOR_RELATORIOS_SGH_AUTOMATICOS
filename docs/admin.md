@@ -26,10 +26,23 @@
 - Escrita protegida por token CSRF; sessão com HttpOnly e SameSite.
 
 ## Testes
-`php web/tests/run.php` (resolução de host, criptografia e validação do formulário; sem dependências).
+`php web/tests/run.php` (resolução de host, criptografia e validação dos formulários; sem dependências).
+`php web/tests/sync_test.php` (planejamento e gravação da sincronização do dicionário; usa SQLite em memória, requer `pdo_sqlite`).
+
+## Sincronização do dicionário
+Menu **Sincronizar**: escolhe um cliente de referência, lê `sys.tables`, `sys.columns` e as FKs declaradas (só catálogo, nunca dados),
+aplicando o prefixo e as exclusões do menu **Escopo**, e compara com o dicionário. Primeiro **Analisar** (nada é gravado), depois **Aplicar**.
+
+- Tabelas e colunas novas são criadas (`situacao = incluir`, `status_revisao = sugerido_ia`).
+- Tipo, tamanho e nulidade divergentes são atualizados.
+- Itens que sumiram do banco (ou saíram do escopo) são só marcados `existe_no_banco = 0`; nada é apagado.
+- **Descrições, nomes de negócio, sensível e situação nunca são sobrescritos.**
+- FKs declaradas viram relações `origem = fk`, confirmadas.
+- É idempotente: reaplicar não duplica.
+
+Menu **Tabelas**: lista o dicionário (filtro por nome).
 
 ## Próximas etapas do admin
-1. Sincronizar tabelas e campos a partir de um banco de referência (qualquer cliente), aplicando o escopo.
-2. Importar a documentação HTML (descrição, valores possíveis).
-3. Tela de tabelas/campos com revisão.
-4. Na execução, checar se as tabelas do dicionário existem no banco do cliente (detecta cliente desatualizado).
+1. Importar a documentação HTML (descrição, valores possíveis).
+2. Tela de revisão de tabelas e campos (editar descrição, nome de negócio, sensível, situação).
+3. Na execução, checar se as tabelas do dicionário existem no banco do cliente (detecta cliente desatualizado).

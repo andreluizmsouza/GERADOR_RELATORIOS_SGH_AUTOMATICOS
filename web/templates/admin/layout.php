@@ -14,7 +14,9 @@
     <?php if ($auth->user()): ?>
       <ul class="navbar-nav flex-row gap-3 me-auto ms-3">
         <li class="nav-item"><a class="nav-link" href="/admin">Clientes</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/dicionario/escopo">Escopo do dicionário</a></li>
+        <li class="nav-item"><a class="nav-link" href="/admin/dicionario">Tabelas</a></li>
+        <li class="nav-item"><a class="nav-link" href="/admin/dicionario/sincronizar">Sincronizar</a></li>
+        <li class="nav-item"><a class="nav-link" href="/admin/dicionario/escopo">Escopo</a></li>
       </ul>
     <?php endif; ?>
     <?php if ($auth->user()): ?>

@@ -19,6 +19,8 @@ use Elogica\Db\ConexaoRepository;
 use Elogica\Db\Control;
 use Elogica\Db\DicionarioConfigRepository;
 use Elogica\Db\UsuarioRepository;
+use Elogica\Metadata\DicionarioRepository;
+use Elogica\Metadata\SyncService;
 use Elogica\Security\Crypto;
 use Elogica\Tenant\TenantResolver;
 
@@ -38,7 +40,10 @@ try {
 
     // O admin é único e independe do host.
     if ($path === '/admin' || str_starts_with($path, '/admin/')) {
-        (new AdminController($auth, $conexoes, new DicionarioConfigRepository($pdo), dirname(__DIR__) . '/templates', $resolver))->handle($method, $path);
+        $escopo = new DicionarioConfigRepository($pdo);
+        $dicionario = new DicionarioRepository($pdo);
+        (new AdminController($auth, $conexoes, $escopo, $dicionario, new SyncService($conexoes, $escopo, $dicionario), dirname(__DIR__) . '/templates', $resolver))
+            ->handle($method, $path);
         exit;
     }
 
