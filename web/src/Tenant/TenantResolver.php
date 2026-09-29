@@ -35,6 +35,31 @@ final class TenantResolver
         return self::isValidSlug($m[1]) ? $m[1] : null;
     }
 
+    /** @return array{0: string, 1: string} texto fixo antes e depois do {slug} no modelo */
+    public function partes(): array
+    {
+        [$antes, $depois] = explode('{slug}', $this->modelo, 2);
+
+        return [$antes, $depois];
+    }
+
+    /** Aceita o slug puro, o prefixo/sufixo do modelo ou o host completo e devolve só o slug. */
+    public function normalizarSlug(string $entrada): string
+    {
+        $entrada = strtolower(trim($entrada));
+        $entrada = preg_replace('#^https?://#', '', $entrada) ?? $entrada;
+        $entrada = rtrim(explode('/', $entrada)[0], '.');
+        [$antes, $depois] = array_map('strtolower', $this->partes());
+        if ($antes !== '' && str_starts_with($entrada, $antes)) {
+            $entrada = substr($entrada, strlen($antes));
+        }
+        if ($depois !== '' && str_ends_with($entrada, $depois)) {
+            $entrada = substr($entrada, 0, -strlen($depois));
+        }
+
+        return $entrada;
+    }
+
     public function hostFor(string $slug): string
     {
         return str_replace('{slug}', $slug, $this->modelo);

@@ -45,6 +45,10 @@ check('subdomínio extra', $r->slugFromHost('x.relatorios-campinas.elogica.info'
 check('host vazio', $r->slugFromHost('') === null);
 check('slug curto demais', $r->slugFromHost('relatorios-a.elogica.info') === null);
 check('hostFor', $r->hostFor('campinas') === 'relatorios-campinas.elogica.info');
+check('normaliza slug puro', $r->normalizarSlug('Campinas') === 'campinas');
+check('normaliza com prefixo', $r->normalizarSlug('relatorios-campinas') === 'campinas');
+check('normaliza host completo', $r->normalizarSlug('relatorios-campinas.elogica.info') === 'campinas');
+check('normaliza URL', $r->normalizarSlug('https://relatorios-cohab-sp.elogica.info/admin') === 'cohab-sp');
 check('modelo sem {slug} rejeitado', lanca(fn () => new TenantResolver('relatorios.elogica.info')));
 check('slug validação', TenantResolver::isValidSlug('cehab-rj') && !TenantResolver::isValidSlug('Campinas') && !TenantResolver::isValidSlug('a_b'));
 

@@ -77,7 +77,9 @@ final class AdminController
         $exclusoes = $id === null ? ConexaoRepository::EXCLUSOES_PADRAO : $this->conexoes->exclusoes($id);
 
         if ($method === 'POST') {
-            $v = ConexaoForm::validar($_POST, $id === null);
+            $post = $_POST;
+            $post['slug'] = $this->tenants->normalizarSlug((string) ($post['slug'] ?? ''));
+            $v = ConexaoForm::validar($post, $id === null);
             $erros = $v['erros'];
             if ($erros === [] && $this->conexoes->slugExists($v['dados']['slug'], $id)) {
                 $erros[] = 'Já existe um cliente com este identificador (URL).';
@@ -114,6 +116,7 @@ final class AdminController
     private function render(string $view, array $vars, bool $layout = true): void
     {
         $auth = $this->auth;
+        [$hostAntes, $hostDepois] = $this->tenants->partes();
         $hostFor = fn (string $slug): string => $this->tenants->hostFor($slug);
         $flash = $_SESSION['flash'] ?? null;
         $flashOk = $_SESSION['flash_ok'] ?? true;
