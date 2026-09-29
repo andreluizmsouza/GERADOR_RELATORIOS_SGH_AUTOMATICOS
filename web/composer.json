@@ -1,0 +1,15 @@
+{
+    "name": "elogica/report-service-web",
+    "description": "Elógica Report Service - aplicação web (admin e relatórios)",
+    "type": "project",
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-sodium": "*",
+        "vlucas/phpdotenv": "^5.6"
+    },
+    "autoload": {
+        "psr-4": { "Elogica\\": "src/" }
+    },
+    "config": { "sort-packages": true }
+}
