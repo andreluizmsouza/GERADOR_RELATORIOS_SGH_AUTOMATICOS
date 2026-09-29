@@ -28,6 +28,7 @@
 ## Testes
 `php web/tests/run.php` (resolução de host, criptografia e validação dos formulários; sem dependências).
 `php web/tests/sync_test.php` (planejamento e gravação da sincronização do dicionário; usa SQLite em memória, requer `pdo_sqlite`).
+`php web/tests/doc_test.php` (leitura dos HTMLs da documentação, consolidação de duplicados e gravação; requer `pdo_sqlite` e `mbstring`).
 
 ## Sincronização do dicionário
 Menu **Sincronizar**: escolhe um cliente de referência, lê `sys.tables`, `sys.columns` e as FKs declaradas (só catálogo, nunca dados),
@@ -42,7 +43,20 @@ aplicando o prefixo e as exclusões do menu **Escopo**, e compara com o dicioná
 
 Menu **Tabelas**: lista o dicionário (filtro por nome).
 
+## Importação da documentação
+Menu **Documentação**: envia o `.zip` (ou vários `.htm`/`.html`) da documentação técnica. Os arquivos são lidos em memória (nada é extraído em disco;
+limites: 8 MB por arquivo, 200 MB no total, 5000 arquivos).
+
+- O nome e a descrição da tabela vêm do texto `Tabela : X / Descrição : Y` do próprio HTML; os campos, da tabela de 3 colunas (campo, tipo, descrição).
+- Versões anteriores (`Anterior_*`, `ANT*`) e arquivos que não descrevem tabela (programas, manuais, bibliotecas) são ignorados.
+- Com mais de um arquivo para a mesma tabela, vale o cujo nome é o da tabela; o restante vira aviso. Nome digitado errado no cabeçalho
+  (ex.: `MTTEND` em `mttbend.htm`) é corrigido pelo nome do arquivo.
+- Valores possíveis: lista em linhas (`0 = Normal`, `1 - Ativo`, `Pessoa Física = 1`) e lista na mesma linha (`1-Ativo 2-Cancelada`).
+  Neste segundo caso a descrição original é mantida inteira. Os valores importados devem ser revisados.
+- Prévia antes de gravar. O que está **vazio** no dicionário é preenchido; onde já existe texto **diferente**, é conflito: você marca
+  tabela a tabela (ou "sobrescrever todos"). Sem marcar, o conflito é mantido como está.
+- Nunca altera nome de negócio, sensível, situação, tipo ou estrutura.
+
 ## Próximas etapas do admin
-1. Importar a documentação HTML (descrição, valores possíveis).
-2. Tela de revisão de tabelas e campos (editar descrição, nome de negócio, sensível, situação).
-3. Na execução, checar se as tabelas do dicionário existem no banco do cliente (detecta cliente desatualizado).
+1. Tela de revisão de tabelas e campos (editar descrição, nome de negócio, sensível, situação, valores possíveis).
+2. Na execução, checar se as tabelas do dicionário existem no banco do cliente (detecta cliente desatualizado).

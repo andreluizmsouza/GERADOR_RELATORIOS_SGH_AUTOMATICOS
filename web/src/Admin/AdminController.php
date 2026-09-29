@@ -9,6 +9,8 @@ use Elogica\Db\ClientConnection;
 use Elogica\Db\ConexaoRepository;
 use Elogica\Db\DicionarioConfigRepository;
 use Elogica\Metadata\DicionarioRepository;
+use Elogica\Metadata\DocImport;
+use Elogica\Metadata\DocLote;
 use Elogica\Metadata\SyncService;
 use Elogica\Tenant\TenantResolver;
 
@@ -37,6 +39,9 @@ final class AdminController
         if (!$this->auth->isAdmin()) {
             $this->redirect('/admin/login');
         }
+        if ($method === 'POST' && $_POST === [] && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+            $this->abort(413, 'O envio passou do limite do servidor (post_max_size). Envie menos arquivos por vez.');
+        }
         if ($method === 'POST' && !$this->auth->verifyCsrf($_POST['csrf'] ?? null)) {
             $this->abort(400, 'Requisição inválida (token de segurança). Recarregue a página.');
         }
@@ -45,6 +50,7 @@ final class AdminController
             $rota === '/logout' && $method === 'POST' => $this->logout(),
             $rota === '/' => $this->render('dashboard', ['conexoes' => $this->conexoes->all()]),
             $rota === '/dicionario' => $this->tabelas(),
+            $rota === '/dicionario/documentacao' => $this->documentacao($method),
             $rota === '/dicionario/sincronizar' => $this->sincronizar($method),
             $rota === '/dicionario/escopo' => $this->escopo($method),
             $rota === '/conexoes/nova' => $this->form($method, null),
@@ -128,6 +134,46 @@ final class AdminController
             }
         }
         $this->render('sincronizar', ['conexoes' => $this->conexoes->all(), 'conexaoId' => $conexaoId, 'resultado' => $resultado, 'erro' => $erro]);
+    }
+
+    private function documentacao(string $method): void
+    {
+        $erros = [];
+        if ($method === 'POST') {
+            $acao = (string) ($_POST['acao'] ?? '');
+            if ($acao === 'enviar') {
+                set_time_limit(300);
+                $c = DocUpload::coletar($_FILES['arquivos'] ?? []);
+                $erros = $c['erros'];
+                if ($c['arquivos'] === []) {
+                    $erros[] = 'Nenhum arquivo .htm/.html foi encontrado no envio.';
+                } else {
+                    $lote = DocLote::consolidar($c['arquivos']);
+                    $lote['arquivos'] = count($c['arquivos']);
+                    $_SESSION['doc_lote'] = $lote;
+                    $this->redirect('/admin/dicionario/documentacao');
+                }
+            } elseif ($acao === 'descartar') {
+                unset($_SESSION['doc_lote']);
+                $this->redirect('/admin/dicionario/documentacao');
+            } elseif ($acao === 'aplicar' && isset($_SESSION['doc_lote'])) {
+                $plano = DocImport::planejar($_SESSION['doc_lote']['tabelas'], $this->dicionario->carregarTextos());
+                $escolhidas = [];
+                foreach ((array) ($_POST['sobrescrever'] ?? []) as $nome) {
+                    $nome = strtoupper((string) $nome);
+                    if (isset($plano['itens'][$nome])) {
+                        $escolhidas[$nome] = true;
+                    }
+                }
+                $r = $this->dicionario->aplicarDocumentacao($plano['itens'], $escolhidas);
+                unset($_SESSION['doc_lote']);
+                $_SESSION['flash'] = sprintf('Documentação aplicada: %d descrições e %d listas de valores gravadas; %d conflitos mantidos como estavam.', $r['descricoes'], $r['valores'], $r['conflitos_mantidos']);
+                $this->redirect('/admin/dicionario/documentacao');
+            }
+        }
+        $lote = $_SESSION['doc_lote'] ?? null;
+        $plano = $lote === null ? null : DocImport::planejar($lote['tabelas'], $this->dicionario->carregarTextos());
+        $this->render('documentacao', ['lote' => $lote, 'plano' => $plano, 'erros' => $erros]);
     }
 
     private function escopo(string $method): void

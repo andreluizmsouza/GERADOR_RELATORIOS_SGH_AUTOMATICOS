@@ -144,4 +144,84 @@ final class DicionarioRepository
 
         return $stmt->fetchAll();
     }
+
+    /**
+     * Textos atuais (descrições e valores possíveis), por nome de tabela em maiúsculas.
+     *
+     * @return array<string, array{id: int, descricao: string, colunas: array<string, array{id: int, coluna: string, descricao: string, valores: list<array{0: string, 1: string}>}>}>
+     */
+    public function carregarTextos(): array
+    {
+        $out = [];
+        $tabPorId = [];
+        foreach ($this->pdo->query('SELECT id, tabela, descricao FROM dbo.dic_tabela')->fetchAll() as $t) {
+            $k = strtoupper((string) $t['tabela']);
+            $out[$k] = ['id' => (int) $t['id'], 'descricao' => (string) ($t['descricao'] ?? ''), 'colunas' => []];
+            $tabPorId[(int) $t['id']] = $k;
+        }
+        $colPorId = [];
+        foreach ($this->pdo->query('SELECT id, dic_tabela_id, coluna, descricao FROM dbo.dic_coluna')->fetchAll() as $c) {
+            $tk = $tabPorId[(int) $c['dic_tabela_id']] ?? null;
+            if ($tk === null) {
+                continue;
+            }
+            $ck = strtoupper((string) $c['coluna']);
+            $out[$tk]['colunas'][$ck] = ['id' => (int) $c['id'], 'coluna' => (string) $c['coluna'], 'descricao' => (string) ($c['descricao'] ?? ''), 'valores' => []];
+            $colPorId[(int) $c['id']] = [$tk, $ck];
+        }
+        foreach ($this->pdo->query('SELECT dic_coluna_id, codigo, significado FROM dbo.dic_coluna_valor ORDER BY ordem, id')->fetchAll() as $v) {
+            [$tk, $ck] = $colPorId[(int) $v['dic_coluna_id']] ?? [null, null];
+            if ($tk !== null) {
+                $out[$tk]['colunas'][$ck]['valores'][] = [(string) $v['codigo'], (string) $v['significado']];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Grava a documentação: preenche o que está vazio e sobrescreve os conflitos apenas das tabelas escolhidas.
+     *
+     * @param array<string, array<string, mixed>> $itens    DocImport::planejar()['itens']
+     * @param array<string, true> $sobrescrever            nomes de tabela (maiúsculas) cujos conflitos devem ser aplicados
+     * @return array{descricoes: int, valores: int, conflitos_mantidos: int}
+     */
+    public function aplicarDocumentacao(array $itens, array $sobrescrever): array
+    {
+        $n = ['descricoes' => 0, 'valores' => 0, 'conflitos_mantidos' => 0];
+        $this->pdo->beginTransaction();
+        try {
+            $updTab = $this->pdo->prepare('UPDATE dbo.dic_tabela SET descricao = :d WHERE id = :id');
+            $updCol = $this->pdo->prepare('UPDATE dbo.dic_coluna SET descricao = :d WHERE id = :id');
+            $delVal = $this->pdo->prepare('DELETE FROM dbo.dic_coluna_valor WHERE dic_coluna_id = :id');
+            $insVal = $this->pdo->prepare('INSERT INTO dbo.dic_coluna_valor (dic_coluna_id, codigo, significado, ordem) VALUES (:id, :c, :s, :o)');
+            foreach ($itens as $nome => $item) {
+                foreach ($item['diffs'] as $d) {
+                    if ($d['estado'] === 'conflito' && !isset($sobrescrever[$nome])) {
+                        $n['conflitos_mantidos']++;
+                        continue;
+                    }
+                    if ($d['tipo'] === 'tabela_desc') {
+                        $updTab->execute([':d' => mb_substr($d['doc'], 0, 1000), ':id' => $d['id']]);
+                        $n['descricoes']++;
+                    } elseif ($d['tipo'] === 'coluna_desc') {
+                        $updCol->execute([':d' => mb_substr($d['doc'], 0, 2000), ':id' => $d['id']]);
+                        $n['descricoes']++;
+                    } else {
+                        $delVal->execute([':id' => $d['id']]);
+                        foreach (array_values($d['valores']) as $i => [$codigo, $significado]) {
+                            $insVal->execute([':id' => $d['id'], ':c' => $codigo, ':s' => $significado, ':o' => $i]);
+                        }
+                        $n['valores']++;
+                    }
+                }
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+
+        return $n;
+    }
 }

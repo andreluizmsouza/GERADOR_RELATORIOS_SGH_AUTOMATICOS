@@ -16,6 +16,7 @@
         <li class="nav-item"><a class="nav-link" href="/admin">Clientes</a></li>
         <li class="nav-item"><a class="nav-link" href="/admin/dicionario">Tabelas</a></li>
         <li class="nav-item"><a class="nav-link" href="/admin/dicionario/sincronizar">Sincronizar</a></li>
+        <li class="nav-item"><a class="nav-link" href="/admin/dicionario/documentacao">Documentação</a></li>
         <li class="nav-item"><a class="nav-link" href="/admin/dicionario/escopo">Escopo</a></li>
       </ul>
     <?php endif; ?>
