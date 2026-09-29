@@ -133,16 +133,122 @@ final class DicionarioRepository
     /**
      * @return list<array<string, mixed>>
      */
-    public function listarTabelas(string $filtro): array
+    public function listarTabelas(string $filtro, string $status = ''): array
     {
-        $stmt = $this->pdo->prepare(
-            'SELECT t.id, t.[schema], t.tabela, t.descricao, t.situacao, t.existe_no_banco, '
-            . '(SELECT COUNT(*) FROM dbo.dic_coluna c WHERE c.dic_tabela_id = t.id) AS colunas '
-            . 'FROM dbo.dic_tabela t WHERE t.tabela LIKE :q ORDER BY t.tabela'
-        );
-        $stmt->execute([':q' => '%' . $filtro . '%']);
+        $sql = 'SELECT t.id, t.[schema], t.tabela, t.descricao, t.situacao, t.existe_no_banco, t.status_revisao, '
+            . '(SELECT COUNT(*) FROM dbo.dic_coluna c WHERE c.dic_tabela_id = t.id) AS colunas, '
+            . "(SELECT COUNT(*) FROM dbo.dic_coluna c WHERE c.dic_tabela_id = t.id AND c.status_revisao = 'revisado') AS revisadas "
+            . 'FROM dbo.dic_tabela t WHERE t.tabela LIKE :q';
+        $params = [':q' => '%' . $filtro . '%'];
+        if ($status !== '') {
+            $sql .= ' AND t.status_revisao = :s';
+            $params[':s'] = $status;
+        }
+        $stmt = $this->pdo->prepare($sql . ' ORDER BY t.tabela');
+        $stmt->execute($params);
 
         return $stmt->fetchAll();
+    }
+
+    /** @return array<string, mixed>|null */
+    public function tabela(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT id, [schema], tabela, descricao, situacao, existe_no_banco, status_revisao, revisado_por, revisado_em FROM dbo.dic_tabela WHERE id = :id');
+        $stmt->execute([':id' => $id]);
+        $r = $stmt->fetch();
+
+        return $r === false ? null : $r;
+    }
+
+    /**
+     * Colunas da tabela com seus valores possíveis, na ordem original.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function colunasDaTabela(int $tabelaId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT id, coluna, ordem, tipo, tamanho, nulo, descricao, nome_negocio, sinonimos, sensivel, existe_no_banco, status_revisao '
+            . 'FROM dbo.dic_coluna WHERE dic_tabela_id = :t ORDER BY ordem, id'
+        );
+        $stmt->execute([':t' => $tabelaId]);
+        $cols = $stmt->fetchAll();
+        $porId = [];
+        foreach ($cols as $i => $c) {
+            $cols[$i]['valores'] = [];
+            $porId[(int) $c['id']] = $i;
+        }
+        $v = $this->pdo->prepare(
+            'SELECT v.dic_coluna_id, v.codigo, v.significado FROM dbo.dic_coluna_valor v '
+            . 'JOIN dbo.dic_coluna c ON c.id = v.dic_coluna_id WHERE c.dic_tabela_id = :t ORDER BY v.ordem, v.id'
+        );
+        $v->execute([':t' => $tabelaId]);
+        foreach ($v->fetchAll() as $r) {
+            $i = $porId[(int) $r['dic_coluna_id']] ?? null;
+            if ($i !== null) {
+                $cols[$i]['valores'][] = [(string) $r['codigo'], (string) $r['significado']];
+            }
+        }
+
+        return $cols;
+    }
+
+    /**
+     * Grava a revisão de uma tabela numa transação. Só toca nos campos editáveis; a estrutura vem da sincronização.
+     *
+     * @param array<string, string> $tabela
+     * @param array<int, array<string, mixed>> $colunas  por id de coluna (já validado e restrito à tabela)
+     * @return array{colunas: int, valores: int}
+     */
+    public function salvarRevisao(int $tabelaId, array $tabela, array $colunas, int $usuarioId, string $agora): array
+    {
+        $n = ['colunas' => 0, 'valores' => 0];
+        $atuais = [];
+        foreach ($this->colunasDaTabela($tabelaId) as $c) {
+            $atuais[(int) $c['id']] = $c;
+        }
+        $this->pdo->beginTransaction();
+        try {
+            $revisada = $tabela['status_revisao'] === 'revisado';
+            $this->pdo->prepare(
+                'UPDATE dbo.dic_tabela SET descricao = :d, situacao = :s, status_revisao = :st, revisado_por = :u, revisado_em = :e WHERE id = :id'
+            )->execute([
+                ':d' => $tabela['descricao'] === '' ? null : $tabela['descricao'], ':s' => $tabela['situacao'], ':st' => $tabela['status_revisao'],
+                ':u' => $revisada ? $usuarioId : null, ':e' => $revisada ? $agora : null, ':id' => $tabelaId,
+            ]);
+
+            $upd = $this->pdo->prepare('UPDATE dbo.dic_coluna SET descricao = :d, nome_negocio = :nn, sinonimos = :si, sensivel = :se, status_revisao = :st WHERE id = :id');
+            $del = $this->pdo->prepare('DELETE FROM dbo.dic_coluna_valor WHERE dic_coluna_id = :id');
+            $ins = $this->pdo->prepare('INSERT INTO dbo.dic_coluna_valor (dic_coluna_id, codigo, significado, ordem) VALUES (:id, :c, :s, :o)');
+            foreach ($colunas as $id => $c) {
+                $a = $atuais[$id] ?? null;
+                if ($a === null) {
+                    continue;
+                }
+                $mudou = (string) ($a['descricao'] ?? '') !== $c['descricao'] || (string) ($a['nome_negocio'] ?? '') !== $c['nome_negocio']
+                    || (string) ($a['sinonimos'] ?? '') !== $c['sinonimos'] || (bool) $a['sensivel'] !== $c['sensivel'] || $a['status_revisao'] !== $c['status_revisao'];
+                if ($mudou) {
+                    $upd->execute([
+                        ':d' => $c['descricao'] === '' ? null : $c['descricao'], ':nn' => $c['nome_negocio'] === '' ? null : $c['nome_negocio'],
+                        ':si' => $c['sinonimos'] === '' ? null : $c['sinonimos'], ':se' => $c['sensivel'] ? 1 : 0, ':st' => $c['status_revisao'], ':id' => $id,
+                    ]);
+                    $n['colunas']++;
+                }
+                if ($a['valores'] !== $c['valores']) {
+                    $del->execute([':id' => $id]);
+                    foreach (array_values($c['valores']) as $i => [$codigo, $significado]) {
+                        $ins->execute([':id' => $id, ':c' => $codigo, ':s' => $significado, ':o' => $i]);
+                    }
+                    $n['valores']++;
+                }
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+
+        return $n;
     }
 
     /**

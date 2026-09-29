@@ -50,6 +50,7 @@ final class AdminController
             $rota === '/logout' && $method === 'POST' => $this->logout(),
             $rota === '/' => $this->render('dashboard', ['conexoes' => $this->conexoes->all()]),
             $rota === '/dicionario' => $this->tabelas(),
+            preg_match('#^/dicionario/tabela/(\d+)$#', $rota, $m) === 1 => $this->tabela($method, (int) $m[1]),
             $rota === '/dicionario/documentacao' => $this->documentacao($method),
             $rota === '/dicionario/sincronizar' => $this->sincronizar($method),
             $rota === '/dicionario/escopo' => $this->escopo($method),
@@ -116,7 +117,33 @@ final class AdminController
     private function tabelas(): void
     {
         $filtro = trim((string) ($_GET['q'] ?? ''));
-        $this->render('tabelas', ['filtro' => $filtro, 'tabelas' => $this->dicionario->listarTabelas($filtro)]);
+        $status = (string) ($_GET['status'] ?? '');
+        $status = in_array($status, RevisaoForm::STATUS, true) ? $status : '';
+        $this->render('tabelas', ['filtro' => $filtro, 'status' => $status, 'tabelas' => $this->dicionario->listarTabelas($filtro, $status)]);
+    }
+
+    private function tabela(string $method, int $id): void
+    {
+        $t = $this->dicionario->tabela($id);
+        if ($t === null) {
+            $this->abort(404, 'Tabela não encontrada.');
+        }
+        $erros = [];
+        $colunas = $this->dicionario->colunasDaTabela($id);
+        if ($method === 'POST') {
+            if (!isset($_POST['fim'])) {
+                $erros[] = 'O formulário chegou incompleto (limite max_input_vars do PHP). Nada foi gravado; aumente o limite no php.ini.';
+            } else {
+                $v = RevisaoForm::validar($_POST, array_map(static fn (array $c): int => (int) $c['id'], $colunas));
+                $erros = $v['erros'];
+                if ($erros === []) {
+                    $r = $this->dicionario->salvarRevisao($id, $v['tabela'], $v['colunas'], (int) ($this->auth->user()['id'] ?? 0), date('Y-m-d H:i:s'));
+                    $_SESSION['flash'] = sprintf('Revisão salva: %d campos e %d listas de valores alterados.', $r['colunas'], $r['valores']);
+                    $this->redirect('/admin/dicionario/tabela/' . $id);
+                }
+            }
+        }
+        $this->render('tabela', ['t' => $t, 'colunas' => $colunas, 'erros' => $erros, 'post' => $method === 'POST' ? $_POST : null]);
     }
 
     private function sincronizar(string $method): void

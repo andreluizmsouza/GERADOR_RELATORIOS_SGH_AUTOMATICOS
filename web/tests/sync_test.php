@@ -38,8 +38,9 @@ function tab(string $t, array $cols): array
 
 $pdo = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
 $pdo->exec("ATTACH ':memory:' AS dbo");
-$pdo->exec('CREATE TABLE dbo.dic_tabela (id INTEGER PRIMARY KEY, [schema] TEXT NOT NULL DEFAULT \'dbo\', tabela TEXT NOT NULL, descricao TEXT, situacao TEXT NOT NULL DEFAULT \'incluir\', existe_no_banco INTEGER NOT NULL DEFAULT 1, UNIQUE ([schema], tabela))');
-$pdo->exec('CREATE TABLE dbo.dic_coluna (id INTEGER PRIMARY KEY, dic_tabela_id INTEGER NOT NULL, coluna TEXT NOT NULL, ordem INTEGER NOT NULL DEFAULT 0, tipo TEXT NOT NULL, tamanho INTEGER, nulo INTEGER NOT NULL DEFAULT 1, descricao TEXT, existe_no_banco INTEGER NOT NULL DEFAULT 1, UNIQUE (dic_tabela_id, coluna))');
+$pdo->exec('CREATE TABLE dbo.dic_tabela (id INTEGER PRIMARY KEY, [schema] TEXT NOT NULL DEFAULT \'dbo\', tabela TEXT NOT NULL, descricao TEXT, situacao TEXT NOT NULL DEFAULT \'incluir\', existe_no_banco INTEGER NOT NULL DEFAULT 1, status_revisao TEXT NOT NULL DEFAULT \'sugerido_ia\', UNIQUE ([schema], tabela))');
+$pdo->exec('CREATE TABLE dbo.dic_coluna (id INTEGER PRIMARY KEY, dic_tabela_id INTEGER NOT NULL, coluna TEXT NOT NULL, ordem INTEGER NOT NULL DEFAULT 0, tipo TEXT NOT NULL, tamanho INTEGER, nulo INTEGER NOT NULL DEFAULT 1, descricao TEXT, existe_no_banco INTEGER NOT NULL DEFAULT 1, status_revisao TEXT NOT NULL DEFAULT \'sugerido_ia\', UNIQUE (dic_tabela_id, coluna))');
+$pdo->exec('CREATE TABLE dbo.dic_coluna_valor (id INTEGER PRIMARY KEY, dic_coluna_id INTEGER, codigo TEXT, significado TEXT, ordem INTEGER DEFAULT 0)');
 $pdo->exec('CREATE TABLE dbo.dic_relacao (id INTEGER PRIMARY KEY, origem_coluna_id INTEGER, destino_coluna_id INTEGER, origem TEXT, confirmada INTEGER)');
 $repo = new DicionarioRepository($pdo);
 

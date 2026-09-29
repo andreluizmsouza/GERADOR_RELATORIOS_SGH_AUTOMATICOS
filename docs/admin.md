@@ -29,6 +29,7 @@
 `php web/tests/run.php` (resolução de host, criptografia e validação dos formulários; sem dependências).
 `php web/tests/sync_test.php` (planejamento e gravação da sincronização do dicionário; usa SQLite em memória, requer `pdo_sqlite`).
 `php web/tests/doc_test.php` (leitura dos HTMLs da documentação, consolidação de duplicados e gravação; requer `pdo_sqlite` e `mbstring`).
+`php web/tests/revisao_test.php` (tela de revisão: validação, sugestão de sensíveis e gravação; requer `pdo_sqlite` e `mbstring`).
 
 ## Sincronização do dicionário
 Menu **Sincronizar**: escolhe um cliente de referência, lê `sys.tables`, `sys.columns` e as FKs declaradas (só catálogo, nunca dados),
@@ -57,6 +58,21 @@ limites: 8 MB por arquivo, 200 MB no total, 5000 arquivos).
   tabela a tabela (ou "sobrescrever todos"). Sem marcar, o conflito é mantido como está.
 - Nunca altera nome de negócio, sensível, situação, tipo ou estrutura.
 
+## Revisão de tabelas e campos
+Menu **Tabelas**: lista com filtro por nome e por status, contagem de campos e de campos revisados. Clicando numa tabela abre a revisão:
+
+- Tabela: descrição, **situação** (`incluir` / `excluir` / `interna`; as duas últimas ficam fora dos relatórios) e status (`sugerido_ia` / `revisado` / `rejeitado`).
+  Ao marcar `revisado`, ficam gravados o usuário e a data.
+- Cada campo: descrição, nome de negócio, sinônimos, **sensível**, valores possíveis (uma linha por valor: `código = significado`) e status.
+- **Sensíveis:** o sistema só *sugere* (selo "possível") campos que parecem dado pessoal (CPF/CGC, nome, endereço, nascimento, renda...).
+  O botão "Marcar sugeridos como sensíveis" marca as sugestões; nada vale até você salvar. Campos sensíveis são mascarados na exportação.
+- "Marcar tudo como revisado ao salvar" fecha a tabela de uma vez.
+- Estrutura (tipo, tamanho, nulidade) não é editável aqui: vem da sincronização.
+
+**Importante — `max_input_vars`:** uma tabela grande (ex.: `MTTBCON`, 332 campos) envia ~1.700 campos de formulário, e o padrão do PHP é 1000
+(o excedente seria descartado em silêncio). O `docs/php/php.ini` já traz `max_input_vars = 10000`. Se o formulário chegar incompleto, a tela avisa e
+**não grava nada**; campos ausentes do envio nunca são apagados.
+
 ## Próximas etapas do admin
-1. Tela de revisão de tabelas e campos (editar descrição, nome de negócio, sensível, situação, valores possíveis).
-2. Na execução, checar se as tabelas do dicionário existem no banco do cliente (detecta cliente desatualizado).
+1. Na execução, checar se as tabelas do dicionário existem no banco do cliente (detecta cliente desatualizado).
+2. Fase 4: gerador de definição de relatório (JSON) a partir do dicionário revisado, com validador de SQL.
