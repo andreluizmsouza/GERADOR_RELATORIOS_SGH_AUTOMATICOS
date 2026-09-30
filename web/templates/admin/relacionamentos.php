@@ -70,5 +70,5 @@ $json = json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
   <datalist id="dl-t"></datalist><datalist id="dl-ca"></datalist><datalist id="dl-cb"></datalist>
 </div>
 <script type="application/json" id="dados"><?= $json ?></script>
-<script src="/assets/vendor/cytoscape.min.js?v=<?= $v('vendor/cytoscape.min.js') ?>"></script>
+<script src="/assets/lib/cytoscape.min.js?v=<?= $v('lib/cytoscape.min.js') ?>"></script>
 <script src="/assets/relacionamentos.js?v=<?= $v('relacionamentos.js') ?>"></script>

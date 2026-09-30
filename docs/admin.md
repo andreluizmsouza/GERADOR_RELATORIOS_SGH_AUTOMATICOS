@@ -103,7 +103,7 @@ sem par, coluna de destino não encontrada ou pares com tipo diferente saem como
 
 **Tela.** À esquerda as tabelas (com quantas ligações aguardam revisão), no centro o mapa da tabela escolhida (à esquerda do centro as que ela consulta, à direita as
 que a consultam; acima de 16 por lado o excesso vira um nó "+N tabelas", e a aba Sugestões lista todas) e à direita a fila de sugestões, o detalhe com os pares de
-colunas e o formulário de nova ligação. Toda ação tem "Desfazer". O mapa usa o **Cytoscape.js 3.28.1** (MIT), guardado em `web/public/assets/vendor/`: é um arquivo
+colunas e o formulário de nova ligação. Toda ação tem "Desfazer". O mapa usa o **Cytoscape.js 3.28.1** (MIT), guardado em `web/public/assets/lib/`: é um arquivo
 estático, sem Composer nem npm e sem depender de CDN (o servidor pode estar sem internet). Foi a única forma razoável de desenhar o grafo com zoom e arrasto.
 
 ## Próximas etapas do admin

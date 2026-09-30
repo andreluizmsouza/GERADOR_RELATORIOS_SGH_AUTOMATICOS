@@ -176,7 +176,8 @@ details.acc .list { margin: 10px 0 0; padding: 0; list-style: none; font-size: 1
 .rel .legend-bar { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
 .rel .legend-bar div { display: flex; align-items: center; gap: 7px; }
 .rel .legend-bar .hint { margin-inline-start: auto; }
-.rel .cy-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.rel .cy-wrap { position: relative; flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.rel .col.stage { overflow: hidden; }
 .rel #cy { flex: 1; min-height: 0; background: var(--canvas); background-image: radial-gradient(var(--grid) 1px, transparent 1px); background-size: 22px 22px; }
 .rel .side-cap { position: absolute; inset-block-start: 10px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); pointer-events: none; z-index: 2; }
 .rel .side-cap.l { inset-inline-start: 12px; } .rel .side-cap.r { inset-inline-end: 12px; text-align: end; }

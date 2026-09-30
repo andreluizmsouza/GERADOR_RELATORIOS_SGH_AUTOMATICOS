@@ -50,7 +50,7 @@
     S.tabelas = d.tabelas; S.resumo = d.resumo; S.maes = d.maes;
   }
   async function refresh(fit = true) {
-    try { await Promise.all([carregarMapa(), carregarLista()]); } catch (e) { toast(e.message); return; }
+    try { await Promise.all([carregarMapa(), carregarLista()]); } catch (e) { erroMapa('Não foi possível carregar os relacionamentos.', esc(e.message) + ' Confira o log do PHP no servidor.'); toast(e.message); return; }
     renderTudo(fit);
   }
 
@@ -152,7 +152,16 @@
     }
     return pos;
   }
+  function erroMapa(titulo, detalhe) {
+    if (cy) { try { cy.destroy(); } catch (e) { /* já destruído */ } cy = null; }
+    $('#cy').innerHTML = `<div class="alert danger" style="margin:16px" role="alert"><span class="x" aria-hidden="true">!</span><div><b>${esc(titulo)}</b><br><span class="small">${detalhe}</span></div></div>`;
+  }
   function renderGraph(fit = true) {
+    if (typeof cytoscape === 'undefined') {
+      erroMapa('O mapa não carregou.', 'Não foi possível baixar <code>/assets/lib/cytoscape.min.js</code>. Confira se a pasta <code>public\\assets\\lib</code> foi copiada para o servidor e abra esse endereço no navegador: deve aparecer código JavaScript, e não um erro 404. As sugestões ao lado continuam funcionando.');
+      $('#cur').innerHTML = `<span class="mono">${esc(S.focus || '')}</span>`;
+      return;
+    }
     if (!S.mapa) { if (cy) cy.destroy(); cy = null; $('#cur').innerHTML = '<span class="muted">Nenhuma tabela no dicionário</span>'; return; }
     const v = vizinhanca();
     const els = [];
@@ -265,7 +274,11 @@
       $('#n-go').onclick = criarManual;
     }
   }
-  function renderTudo(fit = true) { renderTop(); renderList(); renderGraph(fit); renderPanel(); }
+  function renderTudo(fit = true) {
+    renderTop(); renderList();
+    try { renderGraph(fit); } catch (e) { erroMapa('Não foi possível desenhar o mapa.', esc(e.message)); if (window.console) console.error(e); }
+    renderPanel(); // a fila de sugestões funciona mesmo sem o mapa
+  }
 
   /* ---------- ações ---------- */
   async function criarManual() {
