@@ -178,6 +178,21 @@ final class AdminController
                     }
                     $id = $rel->criarManual((string) ($_POST['a'] ?? ''), (string) ($_POST['b'] ?? ''), (string) ($_POST['papel'] ?? ''), $pares, $uid, $agora);
                     $this->json(['ok' => true, 'id' => $id]);
+                case 'editar':
+                    $papeis = [];
+                    foreach ((array) ($_POST['papeis'] ?? []) as $p) {
+                        $pares = [];
+                        foreach ((array) ($p['pares'] ?? []) as $q) {
+                            if (is_array($q) && (trim((string) ($q[0] ?? '')) !== '' || trim((string) ($q[1] ?? '')) !== '')) {
+                                $pares[] = [(string) ($q[0] ?? ''), (string) ($q[1] ?? '')];
+                            }
+                        }
+                        if (is_array($p) && ($pares !== [] || trim((string) ($p['nome'] ?? '')) !== '')) {
+                            $papeis[] = ['nome' => (string) ($p['nome'] ?? ''), 'pares' => $pares];
+                        }
+                    }
+                    $rel->editar((int) ($_POST['id'] ?? 0), $papeis, ($_POST['confirmar'] ?? '') === '1', $uid, $agora);
+                    $this->json(['ok' => true]);
                 case 'gerar':
                     set_time_limit(180);
                     if (isset($_POST['maes'])) {

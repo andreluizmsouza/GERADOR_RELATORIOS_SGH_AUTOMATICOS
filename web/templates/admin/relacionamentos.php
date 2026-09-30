@@ -18,7 +18,8 @@ $json = json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
   </div>
 
   <div class="shell">
-    <aside class="col left" aria-label="Tabelas">
+    <aside class="col left" aria-label="Tabelas" id="col-left">
+      <div class="col-tg"><span>Tabelas</span><button type="button" class="tg" data-lado="left" aria-controls="col-left" aria-expanded="true" title="Recolher a lista de tabelas">«</button></div>
       <div class="col-h"><input id="busca" type="search" placeholder="Buscar tabela" aria-label="Buscar tabela"></div>
       <div class="scroll"><ul class="tlist" id="tlist"></ul></div>
       <div class="filters" role="group" aria-label="Filtros">
@@ -43,12 +44,13 @@ $json = json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
           <button type="button" data-hops="2" aria-pressed="false">2 saltos</button>
         </div>
         <button class="btn sm" id="fit" type="button">Centralizar</button>
+        <button class="btn sm" id="wide" type="button" aria-pressed="false" title="Recolhe as duas laterais e aumenta a altura do mapa">Ampliar mapa</button>
       </div>
       <div class="legend-bar" aria-hidden="true">
         <div><i class="sw fk"></i>FK declarada</div>
         <div><i class="sw sug"></i>Sugerida, aguardando você</div>
         <div><i class="sw conf"></i>Confirmada ou criada por você</div>
-        <span class="hint">Clique numa tabela para centralizar · numa linha para ver as colunas</span>
+        <span class="hint">Clique numa tabela para centralizar · numa linha para ver e editar as colunas</span>
       </div>
       <div class="cy-wrap">
         <span class="side-cap l">◀ Aponta para (consulta)</span><span class="side-cap r">É apontada por (filhas) ▶</span>
@@ -57,7 +59,8 @@ $json = json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
       </div>
     </main>
 
-    <aside class="col right" aria-label="Revisão">
+    <aside class="col right" aria-label="Revisão" id="col-right">
+      <div class="col-tg"><span>Revisão</span><button type="button" class="tg" data-lado="right" aria-controls="col-right" aria-expanded="true" title="Recolher o painel de revisão">»</button></div>
       <div class="tabs" role="tablist">
         <button role="tab" id="tab-sug" aria-selected="true" data-tab="sug">Sugestões<span class="n" id="n-sug">0</span></button>
         <button role="tab" id="tab-det" aria-selected="false" data-tab="det">Detalhe</button>
@@ -67,7 +70,14 @@ $json = json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
     </aside>
   </div>
   <div class="toast" id="toast" hidden></div>
-  <datalist id="dl-t"></datalist><datalist id="dl-ca"></datalist><datalist id="dl-cb"></datalist>
+  <div class="modal-bg" id="modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-tit" tabindex="-1">
+      <header class="m-h"><div id="m-head"></div><button type="button" class="btn ghost sm" id="m-x" aria-label="Fechar">×</button></header>
+      <div class="m-b" id="m-body"></div>
+      <footer class="m-f" id="m-foot"></footer>
+    </div>
+  </div>
+  <datalist id="dl-t"></datalist><datalist id="dl-ca"></datalist><datalist id="dl-cb"></datalist><datalist id="dl-ea"></datalist><datalist id="dl-eb"></datalist>
 </div>
 <script type="application/json" id="dados"><?= $json ?></script>
 <script src="/assets/lib/cytoscape.min.js?v=<?= $v('lib/cytoscape.min.js') ?>"></script>

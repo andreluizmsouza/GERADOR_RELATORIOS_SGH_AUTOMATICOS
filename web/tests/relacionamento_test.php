@@ -169,6 +169,40 @@ foreach ([
 check('excluir só apaga manual', !$repo->excluirManual($ids[0]) && $repo->excluirManual($mid));
 check('excluir manual leva papéis e pares', (int) $pdo->query("SELECT COUNT(*) FROM dbo.dic_relacao_tabela WHERE tipo = 'manual'")->fetchColumn() === 0 && (int) $pdo->query("SELECT COUNT(*) FROM dbo.dic_relacao_papel WHERE nome IN ('Contrato de gaveta', 'Outro papel')")->fetchColumn() === 0);
 
+// edição de uma ligação sugerida
+$ed = $repo->mapa('MTTBSE1', 1)['relacoes'];
+$ed = current(array_filter($ed, static fn (array $x): bool => $x['a'] === 'MTTBCON' && $x['b'] === 'MTTBSE1'));
+$eid = $ed['id'];
+$repo->definirEstado($eid, 'sugerida', 7, $agora);
+$pdo->exec("UPDATE dbo.dic_relacao_tabela SET aviso = 'alerta antigo' WHERE id = {$eid}");
+$repo->editar($eid, [['nome' => 'Adquirente 1', 'pares' => [['CODEMP', 'CODEMP'], ['ADQ1_CPFCGC', 'CGCCPF']]]], false, 7, $agora);
+$dep = current(array_filter($repo->mapa('MTTBSE1', 1)['relacoes'], static fn (array $x): bool => $x['id'] === $eid));
+check('editar troca papéis e pares', count($dep['papeis']) === 1 && $dep['papeis'][0]['nome'] === 'Adquirente 1' && count($dep['papeis'][0]['pares']) === 2 && $dep['papeis'][0]['fonte'] === 'Editada à mão');
+check('editar limpa o alerta e mantém o estado', $dep['aviso'] === null && $dep['estado'] === 'sugerida' && $dep['tipo'] === $ed['tipo']);
+$repo->editar($eid, [['nome' => 'Um', 'pares' => [['CODEMP', 'CODEMP']]], ['nome' => 'Dois', 'pares' => [['ADQ2_CPF', 'CGCCPF']]]], true, 9, $agora);
+$linha = $pdo->query("SELECT estado, decidido_por FROM dbo.dic_relacao_tabela WHERE id = {$eid}")->fetch();
+check('editar e confirmar registra a decisão', $linha['estado'] === 'confirmada' && (int) $linha['decidido_por'] === 9);
+check('editar não deixa pares órfãos', (int) $pdo->query("SELECT COUNT(*) FROM dbo.dic_relacao_par WHERE papel_id NOT IN (SELECT id FROM dbo.dic_relacao_papel)")->fetchColumn() === 0);
+$antes = (int) $pdo->query('SELECT COUNT(*) FROM dbo.dic_relacao_par')->fetchColumn();
+foreach ([
+    'sem papéis' => [$eid, []],
+    'papel sem colunas' => [$eid, [['nome' => 'x', 'pares' => []]]],
+    'coluna inexistente' => [$eid, [['nome' => 'x', 'pares' => [['NAO_EXISTE', 'CODEMP']]]]],
+    'coluna na tabela errada' => [$eid, [['nome' => 'x', 'pares' => [['CODEMP', 'ADQ1_CPFCGC']]]]],
+    'papéis com o mesmo nome' => [$eid, [['nome' => 'x', 'pares' => [['CODEMP', 'CODEMP']]], ['nome' => 'X', 'pares' => [['ADQ2_CPF', 'CGCCPF']]]]],
+    'par repetido' => [$eid, [['nome' => 'x', 'pares' => [['CODEMP', 'CODEMP'], ['CODEMP', 'CODEMP']]]]],
+    'ligação inexistente' => [999999, [['nome' => 'x', 'pares' => [['CODEMP', 'CODEMP']]]]],
+] as $nome => [$i, $p]) {
+    $recusou = false;
+    try {
+        $repo->editar($i, $p, false, 7, $agora);
+    } catch (InvalidArgumentException) {
+        $recusou = true;
+    }
+    check("editar recusa: {$nome}", $recusou);
+}
+check('recusa não altera nada', (int) $pdo->query('SELECT COUNT(*) FROM dbo.dic_relacao_par')->fetchColumn() === $antes);
+
 // FKs: relação nova e papel novo em relação existente
 $fk = ['a' => 'MTTBCON', 'b' => 'MTTBNUC', 'tipo' => 'fk', 'conf' => 'alta', 'estado' => 'confirmada', 'evid' => 'FK', 'aviso' => null, 'papeis' => [['nome' => 'FK_1', 'fonte' => 'sql', 'pares' => [['CODEMP', 'CodEmp'], ['REGIAO', 'Regiao']]]]];
 check('FK nova', $repo->inserirCandidatos([$fk], null, $agora)['novas'] === 1);

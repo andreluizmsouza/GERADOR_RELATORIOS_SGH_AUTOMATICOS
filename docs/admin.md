@@ -106,6 +106,15 @@ que a consultam; acima de 16 por lado o excesso vira um nó "+N tabelas", e a ab
 colunas e o formulário de nova ligação. Toda ação tem "Desfazer". O mapa usa o **Cytoscape.js 3.28.1** (MIT), guardado em `web/public/assets/lib/`: é um arquivo
 estático, sem Composer nem npm e sem depender de CDN (o servidor pode estar sem internet). Foi a única forma razoável de desenhar o grafo com zoom e arrasto.
 
+**Laterais recolhíveis.** Os botões `«` e `»` no topo da lista de tabelas e do painel de revisão recolhem cada lateral para uma faixa fina e o mapa ocupa o espaço.
+"Ampliar mapa" recolhe as duas e aumenta a altura. A escolha fica guardada no navegador (`localStorage`). Em telas estreitas (até 1180 px) só a lista de tabelas recolhe.
+
+**Editar uma ligação.** Clicar numa linha do mapa, num cartão de sugestão ou em "Editar colunas" abre uma **janela sobre a tela** (na mesma aba; `Esc` fecha e o foco fica
+preso nela). Nela se renomeiam papéis, trocam colunas (a lista sugere as colunas de cada tabela e avisa tipo diferente ou coluna inexistente), adicionam ou removem pares e
+papéis. "Salvar" mantém o estado; "Salvar e confirmar" também confirma e registra quem e quando. Origem, destino e tipo não mudam. Ao salvar, o alerta automático é
+removido, pois valia para os pares antigos. O servidor valida tudo de novo (colunas da tabela certa, sem papel vazio, sem nome ou par repetido) e não grava nada se algo falhar.
+Ligações criadas por você ainda podem ser excluídas ali.
+
 ## Próximas etapas do admin
 1. Na execução, checar se as tabelas do dicionário existem no banco do cliente (detecta cliente desatualizado).
 2. Fase 4: gerador de definição de relatório (JSON) a partir do dicionário revisado e dos relacionamentos, com validador de SQL.

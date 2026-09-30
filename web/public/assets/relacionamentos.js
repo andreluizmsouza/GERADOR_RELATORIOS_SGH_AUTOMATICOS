@@ -32,10 +32,12 @@
   async function post(campos) {
     const fd = new FormData();
     fd.append('csrf', D.csrf);
-    for (const [k, v] of Object.entries(campos)) {
-      if (Array.isArray(v)) v.forEach((x, i) => (Array.isArray(x) ? x.forEach((y, j) => fd.append(`${k}[${i}][${j}]`, y)) : fd.append(`${k}[]`, x)));
+    const anexa = (k, v) => {
+      if (Array.isArray(v)) v.forEach((x, i) => anexa(`${k}[${i}]`, x));
+      else if (v && typeof v === 'object') Object.entries(v).forEach(([a, b]) => anexa(`${k}[${a}]`, b));
       else fd.append(k, v);
-    }
+    };
+    for (const [k, v] of Object.entries(campos)) anexa(k, v);
     const r = await fetch('/admin/relacionamentos/acao', { method: 'POST', body: fd, credentials: 'same-origin' });
     let j = {};
     try { j = await r.json(); } catch (e) { /* resposta sem JSON */ }
@@ -179,7 +181,7 @@
     if (!cy) {
       cy = cytoscape({ container: $('#cy'), elements: els, style: estilos(), wheelSensitivity: 0.25, minZoom: 0.3, maxZoom: 1.25, boxSelectionEnabled: false });
       cy.on('tap', 'node', (e) => { const id = e.target.id(); if (id.startsWith('__mais')) { S.tab = 'sug'; renderPanel(); } else setFocus(id); });
-      cy.on('tap', 'edge', (e) => { const rid = e.target.data('rid'); if (rid) select(rid); });
+      cy.on('tap', 'edge', (e) => { const rid = e.target.data('rid'); if (rid) { select(rid); abrirEditor(rid); } });
       cy.on('tap', (e) => { if (e.target === cy) { S.sel = null; cy.edges().removeClass('sel'); if (S.tab === 'det') renderPanel(); } });
       cy.on('mouseover', 'node', (e) => {
         $('#cy').style.cursor = 'pointer';
@@ -202,8 +204,8 @@
   const bOrigem = (r) => `<span class="badge b-${r.tipo}">${ORIGEM[r.tipo]}</span>`;
   const bEstado = (r) => `<span class="badge ${r.estado === 'confirmada' ? 'conf' : r.estado === 'sugerida' ? 'ok' : ''}">${ESTADO[r.estado]}</span>`;
   function acoes(r, grande) {
-    if (r.estado === 'sugerida') return `<div class="acts"><button class="btn ok sm" data-act="ok" data-id="${r.id}" type="button">Aprovar</button><button class="btn sm" data-act="no" data-id="${r.id}" type="button">Rejeitar</button>${grande ? '' : `<button class="btn ghost sm" data-act="ver" data-id="${r.id}" type="button">Ver colunas</button>`}</div>`;
-    return `<div class="acts"><button class="btn sm" data-act="re" data-id="${r.id}" type="button">Voltar a sugerida</button>${r.tipo === 'manual' ? `<button class="btn danger sm" data-act="del" data-id="${r.id}" type="button">Excluir</button>` : ''}</div>`;
+    if (r.estado === 'sugerida') return `<div class="acts"><button class="btn ok sm" data-act="ok" data-id="${r.id}" type="button">Aprovar</button><button class="btn sm" data-act="no" data-id="${r.id}" type="button">Rejeitar</button><button class="btn ghost sm" data-act="ver" data-id="${r.id}" type="button">${grande ? 'Editar colunas' : 'Ver e editar'}</button></div>`;
+    return `<div class="acts"><button class="btn sm" data-act="ver" data-id="${r.id}" type="button">Editar colunas</button><button class="btn sm" data-act="re" data-id="${r.id}" type="button">Voltar a sugerida</button>${r.tipo === 'manual' ? `<button class="btn danger sm" data-act="del" data-id="${r.id}" type="button">Excluir</button>` : ''}</div>`;
   }
   const tipoAviso = (p) => (p[1] !== p[3] ? `<span class="tw">tipos diferentes: ${esc(p[1])} → ${esc(p[3])}</span>` : `<span class="t">${esc(p[1])}</span>`);
   function renderSug() {
@@ -311,6 +313,112 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 6000);
   }
 
+  /* ---------- editor de ligação (janela sobre a tela) ---------- */
+  const M = { r: null, dirty: false, opener: null, tipos: { a: {}, b: {} } };
+  const opcoes = (l) => l.map((c) => `<option value="${esc(c[0])}">${esc(c[1])}</option>`).join('');
+  function parHtml(x = '', y = '') {
+    return `<div class="ln"><div class="prow"><input type="text" list="dl-ea" value="${esc(x)}" placeholder="coluna de origem" aria-label="Coluna de origem" autocomplete="off"><input type="text" list="dl-eb" value="${esc(y)}" placeholder="coluna de destino" aria-label="Coluna de destino" autocomplete="off"><button class="btn ghost sm" type="button" data-ed="rmpar" aria-label="Remover par">×</button></div><span class="tp"></span></div>`;
+  }
+  function papelHtml(p) {
+    return `<section class="ed-papel"><div class="ph"><input type="text" class="pn" value="${esc(p.nome)}" placeholder="Nome do papel" aria-label="Nome do papel" maxlength="200"><button class="btn ghost sm" type="button" data-ed="rmpapel">Remover papel</button></div><div class="hd"><span>${esc(M.r.a)}</span><span>${esc(M.r.b)}</span><span></span></div><div class="pl">${p.pares.map((q) => parHtml(q[0], q[2])).join('')}</div><div><button class="btn sm" type="button" data-ed="addpar">Adicionar par</button></div>${p.fonte ? `<div class="src muted small">Origem: ${esc(p.fonte)}</div>` : ''}</section>`;
+  }
+  function tiposNoEditor() {
+    document.querySelectorAll('#m-body .ln').forEach((ln) => {
+      const [x, y] = [...ln.querySelectorAll('input')].map((i) => i.value.trim().toUpperCase());
+      const tx = M.tipos.a[x], ty = M.tipos.b[y], out = ln.querySelector('.tp');
+      if (x && tx === undefined) out.innerHTML = `<span class="tw">${esc(x)} não existe em ${esc(M.r.a)}</span>`;
+      else if (y && ty === undefined) out.innerHTML = `<span class="tw">${esc(y)} não existe em ${esc(M.r.b)}</span>`;
+      else if (tx && ty) out.innerHTML = tx === ty ? esc(tx) : `<span class="tw">tipos diferentes: ${esc(tx)} → ${esc(ty)}</span>`;
+      else out.textContent = '';
+    });
+  }
+  async function abrirEditor(id) {
+    const r = rels().find((x) => x.id === id); if (!r) return;
+    M.r = r; M.dirty = false; M.opener = document.activeElement;
+    const [ca, cb] = await Promise.all([colunas(r.a), colunas(r.b)]);
+    M.tipos = { a: Object.fromEntries(ca.map((c) => [c[0].toUpperCase(), c[1]])), b: Object.fromEntries(cb.map((c) => [c[0].toUpperCase(), c[1]])) };
+    $('#dl-ea').innerHTML = opcoes(ca); $('#dl-eb').innerHTML = opcoes(cb);
+    $('#m-head').innerHTML = `<h2 id="m-tit">${esc(r.a)} → ${esc(r.b)}</h2><div class="row">${bEstado(r)}${bOrigem(r)}<span class="badge b-${r.conf}">${CONF[r.conf]}</span></div>`;
+    $('#m-body').innerHTML = `<div class="ev">${esc(r.evid)}</div>${r.aviso ? `<div class="alert warn"><span class="x" aria-hidden="true">!</span><span>${esc(r.aviso)}</span></div>` : ''}
+      <p class="muted small" style="margin:0">Lado “N”: <b class="mono">${esc(r.a)}</b> · lado “1”: <b class="mono">${esc(r.b)}</b>. Cada papel é um conjunto de colunas que só faz sentido junto. Ao salvar, o alerta automático é removido.</p>
+      <div id="m-papeis" class="stack" style="gap:10px">${r.papeis.map(papelHtml).join('')}</div>
+      <div><button class="btn sm" type="button" data-ed="addpapel">Adicionar papel</button></div>
+      <div class="alert warn m-msg" id="m-msg" role="alert" hidden></div>`;
+    $('#m-foot').innerHTML = `${r.tipo === 'manual' ? `<button class="btn danger sm esq" type="button" data-act="del" data-id="${r.id}">Excluir ligação</button>` : ''}<button class="btn" type="button" data-ed="cancelar">Cancelar</button><button class="btn" type="button" data-ed="salvar">Salvar</button>${r.estado === 'confirmada' ? '' : '<button class="btn ok" type="button" data-ed="salvar-ok">Salvar e confirmar</button>'}`;
+    $('#modal').hidden = false; document.body.style.overflow = 'hidden';
+    tiposNoEditor();
+    const alvo = $('#m-body input'); (alvo || $('#modal .modal')).focus();
+  }
+  function fecharEditor(forcar = false) {
+    if ($('#modal').hidden) return true;
+    if (!forcar && M.dirty && !confirm('Descartar as alterações desta ligação?')) return false;
+    $('#modal').hidden = true; document.body.style.overflow = ''; M.r = null; M.dirty = false;
+    if (M.opener && document.contains(M.opener)) M.opener.focus();
+    return true;
+  }
+  async function salvarEditor(confirmar) {
+    const msg = $('#m-msg'); msg.hidden = true;
+    const papeis = [...document.querySelectorAll('#m-papeis .ed-papel')].map((sec) => ({
+      nome: sec.querySelector('.pn').value.trim(),
+      pares: [...sec.querySelectorAll('.ln')].map((ln) => [...ln.querySelectorAll('input')].map((i) => i.value.trim())),
+    }));
+    const btns = document.querySelectorAll('#m-foot button'); btns.forEach((b) => { b.disabled = true; });
+    const res = await post({ acao: 'editar', id: M.r.id, confirmar: confirmar ? '1' : '0', papeis });
+    btns.forEach((b) => { b.disabled = false; });
+    if (!res.ok) { msg.hidden = false; msg.textContent = res.erro || 'Não foi possível salvar.'; return; }
+    const id = M.r.id; fecharEditor(true); S.sel = id; S.tab = 'det';
+    await refresh(false); toast(confirmar ? 'Ligação editada e confirmada.' : 'Ligação editada.');
+  }
+  $('#modal').addEventListener('input', () => { M.dirty = true; tiposNoEditor(); });
+  $('#modal').addEventListener('click', (e) => {
+    if (e.target === $('#modal')) return void fecharEditor();
+    if (e.target.closest('#m-x')) return void fecharEditor();
+    const b = e.target.closest('[data-ed]'); if (!b) return;
+    const sec = b.closest('.ed-papel');
+    switch (b.dataset.ed) {
+      case 'cancelar': fecharEditor(); break;
+      case 'salvar': salvarEditor(false); break;
+      case 'salvar-ok': salvarEditor(true); break;
+      case 'addpar': { const pl = sec.querySelector('.pl'); pl.insertAdjacentHTML('beforeend', parHtml()); pl.querySelector('.ln:last-child input').focus(); M.dirty = true; break; }
+      case 'rmpar': { const ln = b.closest('.ln'); if (sec.querySelectorAll('.ln').length > 1) ln.remove(); else ln.querySelectorAll('input').forEach((i) => { i.value = ''; }); M.dirty = true; tiposNoEditor(); break; }
+      case 'rmpapel': if (document.querySelectorAll('#m-papeis .ed-papel').length > 1) { sec.remove(); M.dirty = true; } else { const m = $('#m-msg'); m.hidden = false; m.textContent = 'A ligação precisa de ao menos um papel.'; } break;
+      case 'addpapel': $('#m-papeis').insertAdjacentHTML('beforeend', papelHtml({ nome: '', fonte: '', pares: [['', '', '', '']] })); $('#m-papeis .ed-papel:last-child .pn').focus(); M.dirty = true; break;
+      default:
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if ($('#modal').hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); fecharEditor(); return; }
+    if (e.key !== 'Tab') return;
+    const foco = [...$('#modal .modal').querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')].filter((x) => !x.disabled && x.offsetParent !== null);
+    if (!foco.length) return;
+    const a = document.activeElement, i = foco.indexOf(a);
+    if (e.shiftKey && (i <= 0)) { e.preventDefault(); foco[foco.length - 1].focus(); } else if (!e.shiftKey && i === foco.length - 1) { e.preventDefault(); foco[0].focus(); }
+  });
+
+  /* ---------- laterais recolhíveis e mapa ampliado ---------- */
+  const shell = $('.shell');
+  const LADO = { left: { on: '«', off: '»', nome: 'a lista de tabelas' }, right: { on: '»', off: '«', nome: 'o painel de revisão' } };
+  function salvarLados() {
+    try { localStorage.setItem('rel.lados', JSON.stringify({ left: shell.dataset.left === 'off', right: shell.dataset.right === 'off', wide: shell.classList.contains('wide') })); } catch (e) { /* sem armazenamento */ }
+  }
+  function aplicarLados(l, refazer = true) {
+    for (const k of ['left', 'right']) {
+      shell.dataset[k] = l[k] ? 'off' : 'on';
+      const b = $(`.tg[data-lado="${k}"]`);
+      b.textContent = LADO[k][l[k] ? 'off' : 'on']; b.setAttribute('aria-expanded', String(!l[k]));
+      b.title = (l[k] ? 'Mostrar ' : 'Recolher ') + LADO[k].nome;
+    }
+    shell.classList.toggle('wide', !!l.wide);
+    $('#wide').setAttribute('aria-pressed', String(!!l.wide)); $('#wide').textContent = l.wide ? 'Reduzir mapa' : 'Ampliar mapa';
+    if (refazer && cy) { cy.resize(); renderGraph(true); }
+  }
+  const lados = () => ({ left: shell.dataset.left === 'off', right: shell.dataset.right === 'off', wide: shell.classList.contains('wide') });
+  document.querySelectorAll('.tg').forEach((b) => b.addEventListener('click', () => { const l = lados(); l[b.dataset.lado] = !l[b.dataset.lado]; if (!l.left || !l.right) l.wide = false; aplicarLados(l); salvarLados(); }));
+  $('#wide').addEventListener('click', () => { const l = lados(); const on = !l.wide; aplicarLados({ left: on, right: on, wide: on }); salvarLados(); });
+  window.addEventListener('resize', () => { if (cy) cy.resize(); });
+  try { const g = JSON.parse(localStorage.getItem('rel.lados') || 'null'); if (g) aplicarLados({ left: !!g.left, right: !!g.right, wide: !!g.wide }, false); } catch (e) { /* preferência inválida */ }
+
   document.addEventListener('click', async (e) => {
     const t = e.target.closest('[data-t]'); if (t) return setFocus(t.dataset.t);
     const tab = e.target.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; return renderPanel(); }
@@ -323,9 +431,9 @@
         case 'ok': return definir(id, 'confirmada', 'Ligação aprovada.');
         case 'no': return definir(id, 'rejeitada', 'Ligação rejeitada.');
         case 're': return definir(id, 'sugerida', 'Voltou para as sugestões.');
-        case 'ver': return select(id);
+        case 'ver': select(id); return abrirEditor(id);
         case 'mais': S.mostrar += POR_PAGINA; return renderPanel();
-        case 'del': { const r = await post({ acao: 'excluir', id }); S.sel = null; S.tab = 'sug'; await refresh(false); return toast(r.ok ? 'Ligação excluída.' : 'Só ligações criadas por você podem ser excluídas.'); }
+        case 'del': { if (!confirm('Excluir esta ligação criada por você?')) return; const r = await post({ acao: 'excluir', id }); fecharEditor(true); S.sel = null; S.tab = 'sug'; await refresh(false); return toast(r.ok ? 'Ligação excluída.' : 'Só ligações criadas por você podem ser excluídas.'); }
         case 'lote': {
           const ids = vizinhanca().todas.filter((r) => r.estado === 'sugerida' && r.conf === 'alta' && !r.aviso).map((r) => r.id);
           a.disabled = true;
@@ -335,7 +443,7 @@
         default: return;
       }
     }
-    const card = e.target.closest('.card[data-id]'); if (card) select(+card.dataset.id);
+    const card = e.target.closest('.card[data-id]'); if (card) { select(+card.dataset.id); abrirEditor(+card.dataset.id); }
   });
   $('#busca').addEventListener('input', (e) => { S.busca = e.target.value; renderList(); });
   $('#fit').addEventListener('click', () => cy && cy.fit(undefined, 30));

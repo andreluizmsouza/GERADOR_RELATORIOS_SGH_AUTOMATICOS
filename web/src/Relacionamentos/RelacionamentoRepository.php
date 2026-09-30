@@ -248,6 +248,75 @@ final class RelacionamentoRepository
     }
 
     /**
+     * Substitui os papéis e pares de uma ligação (edição feita por uma pessoa).
+     * Origem, destino e tipo não mudam. O alerta automático é limpo, pois valia para os pares antigos.
+     *
+     * @param list<array{nome: string, pares: list<array{0: string, 1: string}>}> $papeis
+     */
+    public function editar(int $id, array $papeis, bool $confirmar, int $usuarioId, string $agora): void
+    {
+        $s = $this->pdo->prepare('SELECT origem_tabela_id, destino_tabela_id FROM dbo.dic_relacao_tabela WHERE id = :id');
+        $s->execute([':id' => $id]);
+        $r = $s->fetch();
+        $s->closeCursor();
+        if ($r === false) {
+            throw new InvalidArgumentException('Ligação não encontrada.');
+        }
+        if ($papeis === []) {
+            throw new InvalidArgumentException('Informe ao menos um papel com colunas.');
+        }
+        $cols = $this->idsColunas();
+        $nomes = [];
+        $novos = [];
+        foreach ($papeis as $p) {
+            $nome = trim((string) $p['nome']);
+            $nome = $nome === '' ? 'Ligação manual' : $nome;
+            if (mb_strlen($nome) > 200) {
+                throw new InvalidArgumentException('O nome de um papel passa de 200 caracteres.');
+            }
+            if (isset($nomes[mb_strtolower($nome)])) {
+                throw new InvalidArgumentException("Há dois papéis chamados “{$nome}”. Use nomes diferentes.");
+            }
+            $nomes[mb_strtolower($nome)] = true;
+            if ($p['pares'] === []) {
+                throw new InvalidArgumentException("O papel “{$nome}” está sem colunas.");
+            }
+            $ps = [];
+            $vistos = [];
+            foreach ($p['pares'] as [$x, $y]) {
+                $ix = $cols[(int) $r['origem_tabela_id']][strtoupper(trim($x))] ?? null;
+                $iy = $cols[(int) $r['destino_tabela_id']][strtoupper(trim($y))] ?? null;
+                if ($ix === null || $iy === null) {
+                    throw new InvalidArgumentException('Coluna não encontrada: ' . ($ix === null ? trim($x) . ' na tabela de origem' : trim($y) . ' na tabela de destino') . '.');
+                }
+                if (isset($vistos[$ix . ':' . $iy])) {
+                    throw new InvalidArgumentException("O papel “{$nome}” repete o par {$x} → {$y}.");
+                }
+                $vistos[$ix . ':' . $iy] = true;
+                $ps[] = [$ix, $iy];
+            }
+            $novos[] = [$nome, $ps];
+        }
+        $this->pdo->beginTransaction();
+        try {
+            $this->pdo->prepare('DELETE FROM dbo.dic_relacao_par WHERE papel_id IN (SELECT id FROM dbo.dic_relacao_papel WHERE relacao_id = :r)')->execute([':r' => $id]);
+            $this->pdo->prepare('DELETE FROM dbo.dic_relacao_papel WHERE relacao_id = :r')->execute([':r' => $id]);
+            foreach ($novos as [$nome, $ps]) {
+                $this->acrescentarPapel($id, $nome, 'Editada à mão', $ps);
+            }
+            if ($confirmar) {
+                $this->pdo->prepare("UPDATE dbo.dic_relacao_tabela SET aviso = NULL, estado = 'confirmada', decidido_por = :u, decidido_em = :d WHERE id = :id")->execute([':u' => $usuarioId, ':d' => $agora, ':id' => $id]);
+            } else {
+                $this->pdo->prepare('UPDATE dbo.dic_relacao_tabela SET aviso = NULL WHERE id = :id')->execute([':id' => $id]);
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
      * Cria uma ligação à mão, já confirmada.
      *
      * @param list<array{0: string, 1: string}> $pares [coluna de origem, coluna de destino]
