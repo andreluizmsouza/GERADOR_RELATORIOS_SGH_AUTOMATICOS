@@ -12,6 +12,12 @@
 - Login: usuários locais (`dbo.usuario`, perfil `admin` ou `consulta`). Depois: login do sistema via DLL/COM legada
   (ponto de troca: `Elogica\Auth\Auth::attempt`).
 
+## Visual
+O admin usa uma folha de estilo própria (`web/public/assets/admin.css`), sem Bootstrap, com os mesmos tokens do protótipo de
+`docs/prototipos/`: interface grafite, tema claro e escuro automáticos (segue o sistema), fontes IBM Plex Sans e Plex Mono (Google Fonts, com
+alternativa do sistema se o servidor estiver sem internet). A cor só aparece onde significa algo: azul = informação/FK, verde = sugerido ou ok,
+roxo = confirmado, âmbar = atenção, vermelho = erro. Para mudar a aparência, altere as variáveis `--*` no início do `admin.css`.
+
 ## Instalação
 1. Criar o banco `ReportService` e rodar `db/migrations/*.sql` em ordem (001, depois 002).
 2. `cp .env.example .env` e preencher. O `.env` fica fora da pasta pública: ao lado de `src/` (em `web/`) ou na raiz do repositório; vale o primeiro encontrado. Gerar `APP_KEY` com `php web/bin/gerar-chave.php`.

@@ -1,32 +1,31 @@
 <?php /** @var string $hostAntes @var string $hostDepois @var callable $hostFor @var ?int $id @var array<string, mixed> $dados @var list<string> $erros @var \Elogica\Auth\Auth $auth */ ?>
-<h1 class="h4 mb-3"><?= $id === null ? 'Novo cliente' : 'Cliente: ' . e($dados['cliente']) ?></h1>
-<?php foreach ($erros as $er): ?><div class="alert alert-danger py-2"><?= e($er) ?></div><?php endforeach; ?>
-<form method="post" action="<?= $id === null ? '/admin/conexoes/nova' : '/admin/conexoes/' . (int) $id ?>" autocomplete="off" class="bg-white p-3 border rounded">
+<div class="page-h">
+  <div><div class="kicker"><?= $id === null ? 'Novo cliente' : 'Cliente' ?></div><h1><?= $id === null ? 'Cadastrar conexão' : e($dados['cliente']) ?></h1></div>
+</div>
+<?php foreach ($erros as $er): ?><div class="alert danger" role="alert"><?= e($er) ?></div><?php endforeach; ?>
+<form class="panel pad stack" method="post" action="<?= $id === null ? '/admin/conexoes/nova' : '/admin/conexoes/' . (int) $id ?>" autocomplete="off" style="gap:16px">
   <input type="hidden" name="csrf" value="<?= e($auth->csrfToken()) ?>">
-  <div class="row g-3">
-    <div class="col-md-6"><label class="form-label">Nome do cliente</label><input name="cliente" class="form-control" value="<?= e($dados['cliente']) ?>" required></div>
-    <div class="col-md-6"><label class="form-label">Identificador na URL</label>
-      <div class="input-group">
-        <?php if ($hostAntes !== ''): ?><span class="input-group-text"><?= e($hostAntes) ?></span><?php endif; ?>
-        <input name="slug" class="form-control" placeholder="campinas" value="<?= e($dados['slug']) ?>" required>
-        <?php if ($hostDepois !== ''): ?><span class="input-group-text"><?= e($hostDepois) ?></span><?php endif; ?>
+  <div class="grid">
+    <div class="field c-6"><label for="cliente">Nome do cliente</label><input id="cliente" type="text" name="cliente" value="<?= e($dados['cliente']) ?>" required></div>
+    <div class="field c-6"><label for="slug">Identificador na URL</label>
+      <div class="affix">
+        <?php if ($hostAntes !== ''): ?><span><?= e($hostAntes) ?></span><?php endif; ?>
+        <input id="slug" type="text" name="slug" placeholder="campinas" value="<?= e($dados['slug']) ?>" required>
+        <?php if ($hostDepois !== ''): ?><span><?= e($hostDepois) ?></span><?php endif; ?>
       </div>
-      <div class="form-text">Digite só o nome do cliente (ex.: <code>campinas</code>). Endereço final: <code><?= e($hostFor($dados['slug'] !== '' ? (string) $dados['slug'] : 'cliente')) ?></code></div></div>
-    <div class="col-md-6"><label class="form-label">Servidor SQL</label><input name="servidor" class="form-control" value="<?= e($dados['servidor']) ?>" required></div>
-    <div class="col-md-6"><label class="form-label">Banco</label><input name="banco" class="form-control" value="<?= e($dados['banco']) ?>" required></div>
-    <div class="col-md-6"><label class="form-label">Usuário somente leitura</label><input name="usuario_readonly" class="form-control" value="<?= e($dados['usuario_readonly']) ?>" required></div>
-    <div class="col-md-6"><label class="form-label">Senha <?= $id === null ? '' : '<small class="text-muted">(vazio mantém a atual)</small>' ?></label><input name="senha" type="password" class="form-control" autocomplete="new-password" <?= $id === null ? 'required' : '' ?>></div>
-    <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" name="ativo" id="ativo" <?= $dados['ativo'] ? 'checked' : '' ?>><label class="form-check-label" for="ativo">Cliente ativo</label></div>
+      <span class="hint">Só o nome do cliente (ex.: <code>campinas</code>). Endereço final: <code><?= e($hostFor($dados['slug'] !== '' ? (string) $dados['slug'] : 'cliente')) ?></code></span></div>
+    <div class="field c-6"><label for="servidor">Servidor SQL</label><input id="servidor" type="text" name="servidor" value="<?= e($dados['servidor']) ?>" required></div>
+    <div class="field c-6"><label for="banco">Banco</label><input id="banco" type="text" name="banco" value="<?= e($dados['banco']) ?>" required></div>
+    <div class="field c-6"><label for="usuario">Usuário somente leitura</label><input id="usuario" type="text" name="usuario_readonly" value="<?= e($dados['usuario_readonly']) ?>" required></div>
+    <div class="field c-6"><label for="senha">Senha <?= $id === null ? '' : '<span class="muted">(vazio mantém a atual)</span>' ?></label><input id="senha" type="password" name="senha" autocomplete="new-password" <?= $id === null ? 'required' : '' ?>></div>
   </div>
-  <div class="mt-3 d-flex gap-2">
-    <button class="btn btn-primary">Salvar</button>
-    <a class="btn btn-outline-secondary" href="/admin">Voltar</a>
-  </div>
+  <label class="check"><input type="checkbox" name="ativo" <?= $dados['ativo'] ? 'checked' : '' ?>>Cliente ativo</label>
+  <div class="row"><button class="btn primary">Salvar</button><a class="btn" href="/admin">Voltar</a></div>
 </form>
 <?php if ($id !== null): ?>
-<form method="post" action="/admin/conexoes/<?= (int) $id ?>/testar" class="mt-3">
+<form class="panel pad row" method="post" action="/admin/conexoes/<?= (int) $id ?>/testar">
   <input type="hidden" name="csrf" value="<?= e($auth->csrfToken()) ?>">
-  <button class="btn btn-outline-primary">Testar conexão</button>
-  <small class="text-muted ms-2">Verifica o acesso e se o login é somente leitura.</small>
+  <button class="btn">Testar conexão</button>
+  <span class="muted small">Confere o acesso e se o login é somente leitura.</span>
 </form>
 <?php endif; ?>

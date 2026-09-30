@@ -1,37 +1,61 @@
-<?php /** @var string $conteudo @var \Elogica\Auth\Auth $auth @var ?string $flash @var bool $flashOk */ ?>
+<?php
+/** @var string $conteudo @var \Elogica\Auth\Auth $auth @var ?string $flash @var bool $flashOk @var string $nav */
+$css = '/assets/admin.css?v=' . (int) @filemtime(__DIR__ . '/../../public/assets/admin.css');
+$itens = [
+    ['/admin', 'Clientes', ['/', '/conexoes']],
+    ['/admin/dicionario', 'Tabelas', ['/dicionario']],
+    ['/admin/dicionario/sincronizar', 'Sincronizar', ['/dicionario/sincronizar']],
+    ['/admin/dicionario/documentacao', 'Documentação', ['/dicionario/documentacao']],
+    ['/admin/dicionario/escopo', 'Escopo', ['/dicionario/escopo']],
+];
+$ativo = static function (array $prefixos) use ($nav): bool {
+    // o item mais específico vence: /dicionario/sincronizar não deve acender "Tabelas"
+    foreach (['/dicionario/sincronizar', '/dicionario/documentacao', '/dicionario/escopo'] as $especifico) {
+        if (str_starts_with($nav, $especifico)) {
+            return in_array($especifico, $prefixos, true);
+        }
+    }
+    foreach ($prefixos as $p) {
+        if ($p === '/' ? $nav === '/' : str_starts_with($nav, $p)) {
+            return true;
+        }
+    }
+
+    return false;
+};
+?>
 <!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin - Elógica Relatórios</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <title>Admin · Elógica Relatórios</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="<?= e($css) ?>">
 </head>
-<body class="bg-light">
-<nav class="navbar navbar-dark bg-dark mb-4">
-  <div class="container">
-    <a class="navbar-brand" href="/admin">Elógica Relatórios · Admin</a>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="brand" href="/admin"><span class="kicker">Elógica · SGH</span><b>Relatórios</b></a>
     <?php if ($auth->user()): ?>
-      <ul class="navbar-nav flex-row gap-3 me-auto ms-3">
-        <li class="nav-item"><a class="nav-link" href="/admin">Clientes</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/dicionario">Tabelas</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/dicionario/sincronizar">Sincronizar</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/dicionario/documentacao">Documentação</a></li>
-        <li class="nav-item"><a class="nav-link" href="/admin/dicionario/escopo">Escopo</a></li>
-      </ul>
+      <nav class="nav" aria-label="Principal">
+        <?php foreach ($itens as [$href, $rotulo, $prefixos]): ?>
+          <a href="<?= e($href) ?>" <?= $ativo($prefixos) ? 'aria-current="page"' : '' ?>><?= e($rotulo) ?></a>
+        <?php endforeach; ?>
+      </nav>
+      <div class="user">
+        <span><?= e($auth->user()['nome']) ?></span>
+        <form method="post" action="/admin/logout">
+          <input type="hidden" name="csrf" value="<?= e($auth->csrfToken()) ?>">
+          <button class="btn sm">Sair</button>
+        </form>
+      </div>
     <?php endif; ?>
-    <?php if ($auth->user()): ?>
-      <form method="post" action="/admin/logout" class="d-flex align-items-center gap-2 m-0">
-        <span class="text-light small"><?= e($auth->user()['nome']) ?></span>
-        <input type="hidden" name="csrf" value="<?= e($auth->csrfToken()) ?>">
-        <button class="btn btn-outline-light btn-sm">Sair</button>
-      </form>
-    <?php endif; ?>
-  </div>
-</nav>
-<main class="container">
-  <?php if ($flash): ?><div class="alert alert-<?= $flashOk ? 'success' : 'danger' ?>"><?= e($flash) ?></div><?php endif; ?>
-  <?= $conteudo ?>
-</main>
+  </header>
+  <?php if ($flash): ?><div class="alert <?= $flashOk ? 'ok' : 'danger' ?>" role="status"><?= e($flash) ?></div><?php endif; ?>
+  <main class="stack" style="gap:14px"><?= $conteudo ?></main>
+</div>
 </body>
 </html>

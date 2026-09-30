@@ -27,9 +27,12 @@ final class AdminController
     ) {
     }
 
+    private string $rotaAtual = '/';
+
     public function handle(string $method, string $path): void
     {
         $rota = '/' . trim(substr($path, strlen('/admin')), '/');
+        $this->rotaAtual = $rota;
 
         if ($rota === '/login') {
             $this->login($method);
@@ -241,6 +244,7 @@ final class AdminController
     private function render(string $view, array $vars, bool $layout = true): void
     {
         $auth = $this->auth;
+        $nav = $this->rotaAtual;
         [$hostAntes, $hostDepois] = $this->tenants->partes();
         $hostFor = fn (string $slug): string => $this->tenants->hostFor($slug);
         $flash = $_SESSION['flash'] ?? null;
