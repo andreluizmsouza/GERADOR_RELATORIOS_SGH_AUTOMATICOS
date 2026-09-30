@@ -21,6 +21,7 @@ use Elogica\Db\DicionarioConfigRepository;
 use Elogica\Db\UsuarioRepository;
 use Elogica\Metadata\DicionarioRepository;
 use Elogica\Metadata\SyncService;
+use Elogica\Relacionamentos\RelacionamentoRepository;
 use Elogica\Security\Crypto;
 use Elogica\Tenant\TenantResolver;
 
@@ -42,7 +43,7 @@ try {
     if ($path === '/admin' || str_starts_with($path, '/admin/')) {
         $escopo = new DicionarioConfigRepository($pdo);
         $dicionario = new DicionarioRepository($pdo);
-        (new AdminController($auth, $conexoes, $escopo, $dicionario, new SyncService($conexoes, $escopo, $dicionario), dirname(__DIR__) . '/templates', $resolver))
+        (new AdminController($auth, $conexoes, $escopo, $dicionario, new SyncService($conexoes, $escopo, $dicionario), new RelacionamentoRepository($pdo), dirname(__DIR__) . '/templates', $resolver))
             ->handle($method, $path);
         exit;
     }

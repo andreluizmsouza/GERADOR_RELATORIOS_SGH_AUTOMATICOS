@@ -25,25 +25,28 @@ final class SchemaReader
     }
 
     /**
-     * FKs declaradas entre as tabelas lidas.
+     * FKs declaradas entre as tabelas lidas, uma por constraint (uma FK composta traz vários pares de colunas).
      *
      * @param array<string, array<string, mixed>> $tabelas
-     * @return list<array{origem: string, col_origem: string, destino: string, col_destino: string}>
+     * @return list<array{origem: string, destino: string, nome: string, pares: list<array{0: string, 1: string}>}>
      */
     private function fks(array $tabelas): array
     {
-        $vistas = [];
+        $porFk = [];
         foreach ($this->pdo->query(self::SQL_FKS)->fetchAll() as $r) {
             $origem = Sync::chave((string) $r['sch_origem'], (string) $r['tab_origem']);
             $destino = Sync::chave((string) $r['sch_destino'], (string) $r['tab_destino']);
             if (!isset($tabelas[$origem], $tabelas[$destino])) {
                 continue;
             }
-            $fk = ['origem' => $origem, 'col_origem' => strtoupper((string) $r['col_origem']), 'destino' => $destino, 'col_destino' => strtoupper((string) $r['col_destino'])];
-            $vistas[implode('|', $fk)] = $fk; // o catálogo repete FKs duplicadas
+            $k = $origem . '|' . $destino . '|' . $r['fk_nome'];
+            $porFk[$k]['origem'] = $origem;
+            $porFk[$k]['destino'] = $destino;
+            $porFk[$k]['nome'] = (string) $r['fk_nome'];
+            $porFk[$k]['pares'][] = [strtoupper((string) $r['col_origem']), strtoupper((string) $r['col_destino'])];
         }
 
-        return array_values($vistas);
+        return array_values($porFk);
     }
 
     /**
@@ -90,11 +93,12 @@ final class SchemaReader
             . "WHERE {$where} ORDER BY s.name, t.name, c.column_id";
     }
 
-    public const SQL_FKS = 'SELECT OBJECT_SCHEMA_NAME(fk.parent_object_id) AS sch_origem, OBJECT_NAME(fk.parent_object_id) AS tab_origem, '
+    public const SQL_FKS = 'SELECT fk.name AS fk_nome, OBJECT_SCHEMA_NAME(fk.parent_object_id) AS sch_origem, OBJECT_NAME(fk.parent_object_id) AS tab_origem, '
         . 'pc.name AS col_origem, OBJECT_SCHEMA_NAME(fk.referenced_object_id) AS sch_destino, '
         . 'OBJECT_NAME(fk.referenced_object_id) AS tab_destino, rc.name AS col_destino '
         . 'FROM sys.foreign_key_columns fkc '
         . 'JOIN sys.foreign_keys fk ON fk.object_id = fkc.constraint_object_id '
         . 'JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id '
-        . 'JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id';
+        . 'JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id '
+        . 'ORDER BY fk.name, fkc.constraint_column_id';
 }

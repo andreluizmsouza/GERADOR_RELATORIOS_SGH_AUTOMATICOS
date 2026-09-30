@@ -12,6 +12,8 @@ use Elogica\Metadata\DicionarioRepository;
 use Elogica\Metadata\DocImport;
 use Elogica\Metadata\DocLote;
 use Elogica\Metadata\SyncService;
+use Elogica\Relacionamentos\RelacionamentoRepository;
+use Elogica\Relacionamentos\Sugestor;
 use Elogica\Tenant\TenantResolver;
 
 final class AdminController
@@ -22,6 +24,7 @@ final class AdminController
         private readonly DicionarioConfigRepository $escopo,
         private readonly DicionarioRepository $dicionario,
         private readonly SyncService $sync,
+        private readonly RelacionamentoRepository $relacionamentos,
         private readonly string $templates,
         private readonly TenantResolver $tenants,
     ) {
@@ -52,6 +55,11 @@ final class AdminController
         match (true) {
             $rota === '/logout' && $method === 'POST' => $this->logout(),
             $rota === '/' => $this->render('dashboard', ['conexoes' => $this->conexoes->all()]),
+            $rota === '/relacionamentos' => $this->paginaRelacionamentos(),
+            $rota === '/relacionamentos/dados' => $this->json($this->dadosRelacionamentos()),
+            $rota === '/relacionamentos/mapa' => $this->mapaRelacionamentos(),
+            $rota === '/relacionamentos/colunas' => $this->json($this->relacionamentos->colunas((string) ($_GET['tabela'] ?? ''))),
+            $rota === '/relacionamentos/acao' && $method === 'POST' => $this->acaoRelacionamento(),
             $rota === '/dicionario' => $this->tabelas(),
             preg_match('#^/dicionario/tabela/(\d+)$#', $rota, $m) === 1 => $this->tabela($method, (int) $m[1]),
             $rota === '/dicionario/documentacao' => $this->documentacao($method),
@@ -115,6 +123,89 @@ final class AdminController
             }
         }
         $this->render('conexao', ['id' => $id, 'dados' => $dados, 'erros' => $erros]);
+    }
+
+    /** @return array<string, mixed> */
+    private function dadosRelacionamentos(): array
+    {
+        return ['tabelas' => $this->relacionamentos->tabelas(), 'resumo' => $this->relacionamentos->resumo(), 'maes' => $this->relacionamentos->tabelasMae()];
+    }
+
+    private function paginaRelacionamentos(): void
+    {
+        $dados = $this->dadosRelacionamentos();
+        $nomes = array_column($dados['tabelas'], 'n');
+        $foco = strtoupper((string) ($_GET['tabela'] ?? ''));
+        if (!in_array($foco, $nomes, true)) {
+            $foco = $dados['maes'][0] ?? '';
+        }
+        if (!in_array($foco, $nomes, true)) {
+            $foco = $nomes[0] ?? '';
+        }
+        $dados['foco'] = $foco;
+        $dados['csrf'] = $this->auth->csrfToken();
+        $this->render('relacionamentos', ['dados' => $dados]);
+    }
+
+    private function mapaRelacionamentos(): never
+    {
+        $mapa = $this->relacionamentos->mapa((string) ($_GET['tabela'] ?? ''), (int) ($_GET['saltos'] ?? 1));
+        $mapa === null ? $this->json(['erro' => 'Tabela não encontrada.'], 404) : $this->json($mapa);
+    }
+
+    /** Ações da tela de relacionamentos (POST, resposta em JSON). */
+    private function acaoRelacionamento(): never
+    {
+        $uid = (int) ($this->auth->user()['id'] ?? 0);
+        $agora = date('Y-m-d H:i:s');
+        $rel = $this->relacionamentos;
+        try {
+            switch ((string) ($_POST['acao'] ?? '')) {
+                case 'estado':
+                    $this->json(['ok' => $rel->definirEstado((int) ($_POST['id'] ?? 0), (string) ($_POST['estado'] ?? ''), $uid, $agora)]);
+                    // no break: json() encerra a requisição
+                case 'lote':
+                    $ids = array_map('intval', (array) ($_POST['ids'] ?? []));
+                    $this->json(['ok' => true, 'aprovadas' => $rel->aprovarLote($ids, $uid, $agora)]);
+                case 'excluir':
+                    $this->json(['ok' => $rel->excluirManual((int) ($_POST['id'] ?? 0))]);
+                case 'criar':
+                    $pares = [];
+                    foreach ((array) ($_POST['pares'] ?? []) as $p) {
+                        if (is_array($p) && (trim((string) ($p[0] ?? '')) !== '' || trim((string) ($p[1] ?? '')) !== '')) {
+                            $pares[] = [(string) ($p[0] ?? ''), (string) ($p[1] ?? '')];
+                        }
+                    }
+                    $id = $rel->criarManual((string) ($_POST['a'] ?? ''), (string) ($_POST['b'] ?? ''), (string) ($_POST['papel'] ?? ''), $pares, $uid, $agora);
+                    $this->json(['ok' => true, 'id' => $id]);
+                case 'gerar':
+                    set_time_limit(180);
+                    if (isset($_POST['maes'])) {
+                        $maes = array_values(array_filter(array_map(static fn (string $s): string => strtoupper(trim($s)), explode(',', (string) $_POST['maes']))));
+                        foreach ($maes as $m) {
+                            if (preg_match('/^[A-Z0-9_]{1,128}$/', $m) !== 1) {
+                                throw new \InvalidArgumentException("Nome de tabela-mãe inválido: {$m}");
+                            }
+                        }
+                        $rel->salvarMaes($maes);
+                    }
+                    $sugestoes = Sugestor::gerar($rel->tabelasParaSugestor(), $rel->tabelasMae());
+                    $this->json(['ok' => true] + $rel->inserirCandidatos($sugestoes, $uid, $agora) + ['geradas' => count($sugestoes)]);
+                default:
+                    $this->json(['ok' => false, 'erro' => 'Ação desconhecida.'], 400);
+            }
+        } catch (\InvalidArgumentException $e) {
+            $this->json(['ok' => false, 'erro' => $e->getMessage()], 422);
+        }
+    }
+
+    private function json(mixed $dados, int $codigo = 200): never
+    {
+        http_response_code($codigo);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit;
     }
 
     private function tabelas(): void

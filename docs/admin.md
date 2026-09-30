@@ -19,7 +19,7 @@ alternativa do sistema se o servidor estiver sem internet). A cor só aparece on
 roxo = confirmado, âmbar = atenção, vermelho = erro. Para mudar a aparência, altere as variáveis `--*` no início do `admin.css`.
 
 ## Instalação
-1. Criar o banco `ReportService` e rodar `db/migrations/*.sql` em ordem (001, depois 002).
+1. Criar o banco `ReportService` e rodar `db/migrations/*.sql` em ordem (001, 002 e 003).
 2. `cp .env.example .env` e preencher. O `.env` fica fora da pasta pública: ao lado de `src/` (em `web/`) ou na raiz do repositório; vale o primeiro encontrado. Gerar `APP_KEY` com `php web/bin/gerar-chave.php`.
 3. `cd web && composer install --no-dev`.
 4. Criar o primeiro admin: `php web/bin/criar-usuario.php admin "Nome" admin`.
@@ -36,6 +36,7 @@ roxo = confirmado, âmbar = atenção, vermelho = erro. Para mudar a aparência,
 `php web/tests/sync_test.php` (planejamento e gravação da sincronização do dicionário; usa SQLite em memória, requer `pdo_sqlite`).
 `php web/tests/doc_test.php` (leitura dos HTMLs da documentação, consolidação de duplicados e gravação; requer `pdo_sqlite` e `mbstring`).
 `php web/tests/revisao_test.php` (tela de revisão: validação, sugestão de sensíveis e gravação; requer `pdo_sqlite` e `mbstring`).
+`php web/tests/relacionamento_test.php` (motor de sugestões de relacionamentos e sua gravação; requer `pdo_sqlite` e `mbstring`).
 
 ## Sincronização do dicionário
 Menu **Sincronizar**: escolhe um cliente de referência, lê `sys.tables`, `sys.columns` e as FKs declaradas (só catálogo, nunca dados),
@@ -79,6 +80,32 @@ Menu **Tabelas**: lista com filtro por nome e por status, contagem de campos e d
 (o excedente seria descartado em silêncio). O `docs/php/php.ini` já traz `max_input_vars = 10000`. Se o formulário chegar incompleto, a tela avisa e
 **não grava nada**; campos ausentes do envio nunca são apagados.
 
+## Relacionamentos entre tabelas
+Menu **Relacionamentos**. Um relacionamento liga duas tabelas, do lado **N** (quem carrega a chave estrangeira) para o lado **1**. Cada um tem um ou mais
+**papéis**, e cada papel é um conjunto de pares de colunas que só faz sentido junto. Exemplo real: `MTTBCON → MTTBSE1` tem 4 papéis (adquirentes 1 a 4),
+cada um com `CODEMP + ADQn_CPF ↔ CODEMP + CGCCPF`. Modelo: `dic_relacao_tabela`, `dic_relacao_papel`, `dic_relacao_par` (migration 003, que também converte
+e remove o antigo `dic_relacao`).
+
+**Como ele nasce** (origem = `tipo`):
+- `fk`: chave estrangeira declarada no banco. Vem da sincronização, já confirmada. Uma FK composta vira um papel com vários pares.
+- `doc`: a descrição de um campo cita `(Tabela MTTBxxx)` na documentação. Os pares são deduzidos por nome e tipo: mesmo nome, semelhança de nome
+  (palavras e trechos de 3 letras), posição (chaves ficam no começo da tabela) e "parece código" (`COD…`, `ID…`, `NUM…`).
+- `chave`: tabelas que carregam a chave composta de uma **tabela-mãe** (padrão `MTTBCON`: `CODEMP + REGIAO + NUCLEO + CONTRATO`). A chave é o maior prefixo de
+  colunas da mãe que se repete em pelo menos 10 outras tabelas com os mesmos tipos.
+- `manual`: criada por você na aba "Nova ligação", já confirmada.
+
+**Confiança e alertas.** `alta` só quando cada par tem semelhança de nome (ou mesmo nome). Palpite só por posição e tipo, chave da tabela de destino com colunas
+sem par, coluna de destino não encontrada ou pares com tipo diferente saem como `média` e/ou com **alerta** (ex.: `char(3)` contra `int` exige conversão no JOIN;
+`char(11)` contra `char(14)` pede a regra de comparação). O botão "Aprovar em lote" só aprova **alta e sem alerta**.
+
+**Regras de segurança do fluxo.** Nada é gerado por IA e nada sai do servidor. Toda sugestão nasce como `sugerida` (as FKs, que são fato do banco, como `confirmada`).
+"Gerar sugestões" só **cria**: relações que já existem (mesma origem, destino e tipo) não são alteradas, então aprovações e rejeições nunca são desfeitas.
+
+**Tela.** À esquerda as tabelas (com quantas ligações aguardam revisão), no centro o mapa da tabela escolhida (à esquerda do centro as que ela consulta, à direita as
+que a consultam; acima de 16 por lado o excesso vira um nó "+N tabelas", e a aba Sugestões lista todas) e à direita a fila de sugestões, o detalhe com os pares de
+colunas e o formulário de nova ligação. Toda ação tem "Desfazer". O mapa usa o **Cytoscape.js 3.28.1** (MIT), guardado em `web/public/assets/vendor/`: é um arquivo
+estático, sem Composer nem npm e sem depender de CDN (o servidor pode estar sem internet). Foi a única forma razoável de desenhar o grafo com zoom e arrasto.
+
 ## Próximas etapas do admin
 1. Na execução, checar se as tabelas do dicionário existem no banco do cliente (detecta cliente desatualizado).
-2. Fase 4: gerador de definição de relatório (JSON) a partir do dicionário revisado, com validador de SQL.
+2. Fase 4: gerador de definição de relatório (JSON) a partir do dicionário revisado e dos relacionamentos, com validador de SQL.

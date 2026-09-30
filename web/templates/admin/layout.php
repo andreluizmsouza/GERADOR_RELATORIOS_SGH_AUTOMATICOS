@@ -4,6 +4,7 @@ $css = '/assets/admin.css?v=' . (int) @filemtime(__DIR__ . '/../../public/assets
 $itens = [
     ['/admin', 'Clientes', ['/', '/conexoes']],
     ['/admin/dicionario', 'Tabelas', ['/dicionario']],
+    ['/admin/relacionamentos', 'Relacionamentos', ['/relacionamentos']],
     ['/admin/dicionario/sincronizar', 'Sincronizar', ['/dicionario/sincronizar']],
     ['/admin/dicionario/documentacao', 'Documentação', ['/dicionario/documentacao']],
     ['/admin/dicionario/escopo', 'Escopo', ['/dicionario/escopo']],

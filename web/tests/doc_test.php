@@ -7,6 +7,7 @@ require __DIR__ . '/../src/Metadata/DocParser.php';
 require __DIR__ . '/../src/Metadata/DocLote.php';
 require __DIR__ . '/../src/Metadata/DocImport.php';
 require __DIR__ . '/../src/Metadata/Sync.php';
+require __DIR__ . '/../src/Relacionamentos/RelacionamentoRepository.php';
 require __DIR__ . '/../src/Metadata/DicionarioRepository.php';
 
 use Elogica\Metadata\DicionarioRepository;

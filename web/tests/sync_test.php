@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 // Testes da sincronização do dicionário: php tests/sync_test.php  (usa SQLite em memória; requer pdo_sqlite)
 require __DIR__ . '/../src/Metadata/Sync.php';
+require __DIR__ . '/../src/Relacionamentos/RelacionamentoRepository.php';
 require __DIR__ . '/../src/Metadata/DicionarioRepository.php';
 
 use Elogica\Metadata\DicionarioRepository;
@@ -41,7 +42,9 @@ $pdo->exec("ATTACH ':memory:' AS dbo");
 $pdo->exec('CREATE TABLE dbo.dic_tabela (id INTEGER PRIMARY KEY, [schema] TEXT NOT NULL DEFAULT \'dbo\', tabela TEXT NOT NULL, descricao TEXT, situacao TEXT NOT NULL DEFAULT \'incluir\', existe_no_banco INTEGER NOT NULL DEFAULT 1, status_revisao TEXT NOT NULL DEFAULT \'sugerido_ia\', UNIQUE ([schema], tabela))');
 $pdo->exec('CREATE TABLE dbo.dic_coluna (id INTEGER PRIMARY KEY, dic_tabela_id INTEGER NOT NULL, coluna TEXT NOT NULL, ordem INTEGER NOT NULL DEFAULT 0, tipo TEXT NOT NULL, tamanho INTEGER, nulo INTEGER NOT NULL DEFAULT 1, descricao TEXT, existe_no_banco INTEGER NOT NULL DEFAULT 1, status_revisao TEXT NOT NULL DEFAULT \'sugerido_ia\', UNIQUE (dic_tabela_id, coluna))');
 $pdo->exec('CREATE TABLE dbo.dic_coluna_valor (id INTEGER PRIMARY KEY, dic_coluna_id INTEGER, codigo TEXT, significado TEXT, ordem INTEGER DEFAULT 0)');
-$pdo->exec('CREATE TABLE dbo.dic_relacao (id INTEGER PRIMARY KEY, origem_coluna_id INTEGER, destino_coluna_id INTEGER, origem TEXT, confirmada INTEGER)');
+$pdo->exec('CREATE TABLE dbo.dic_relacao_tabela (id INTEGER PRIMARY KEY, origem_tabela_id INTEGER, destino_tabela_id INTEGER, tipo TEXT, estado TEXT, confianca TEXT, evidencia TEXT, aviso TEXT, criado_por INTEGER, criado_em TEXT, decidido_por INTEGER, decidido_em TEXT, UNIQUE (origem_tabela_id, destino_tabela_id, tipo))');
+$pdo->exec('CREATE TABLE dbo.dic_relacao_papel (id INTEGER PRIMARY KEY, relacao_id INTEGER, nome TEXT, fonte TEXT, UNIQUE (relacao_id, nome))');
+$pdo->exec('CREATE TABLE dbo.dic_relacao_par (id INTEGER PRIMARY KEY, papel_id INTEGER, ordem INTEGER, origem_coluna_id INTEGER, destino_coluna_id INTEGER)');
 $repo = new DicionarioRepository($pdo);
 
 // --- 1ª sincronização: dicionário vazio ---
@@ -49,7 +52,7 @@ $banco = [
     'DBO.MTTBCON' => tab('MTTBCON', [col('CODEMP', 1, 'smallint', 2, false), col('CONTRATO', 2, 'char', 10)]),
     'DBO.MTTBNUC' => tab('MTTBNUC', [col('NUCLEO', 1, 'smallint', 2, false)]),
 ];
-$fks = [['origem' => 'DBO.MTTBCON', 'col_origem' => 'CODEMP', 'destino' => 'DBO.MTTBNUC', 'col_destino' => 'NUCLEO']];
+$fks = [['origem' => 'DBO.MTTBCON', 'destino' => 'DBO.MTTBNUC', 'nome' => 'FK_CON_NUC', 'pares' => [['CODEMP', 'NUCLEO']]]];
 $plano = Sync::planejar($banco, $repo->carregar());
 check('dic vazio: tabelas novas', count($plano['tabelas_novas']) === 2);
 check('há mudanças', Sync::temMudancas($plano));
@@ -62,7 +65,8 @@ $plano = Sync::planejar($banco, $repo->carregar());
 check('2ª análise sem mudanças', !Sync::temMudancas($plano) && $plano['sem_mudanca'] === 3);
 $r = $repo->aplicar($plano, $fks);
 check('reaplicar não duplica', $r === ['tabelas' => 0, 'colunas' => 0, 'relacoes' => 0]);
-check('relação única', (int) $pdo->query('SELECT COUNT(*) FROM dbo.dic_relacao')->fetchColumn() === 1);
+check('relação única', (int) $pdo->query('SELECT COUNT(*) FROM dbo.dic_relacao_tabela')->fetchColumn() === 1 && (int) $pdo->query('SELECT COUNT(*) FROM dbo.dic_relacao_par')->fetchColumn() === 1);
+check('FK entra confirmada', $pdo->query('SELECT estado FROM dbo.dic_relacao_tabela')->fetchColumn() === 'confirmada');
 
 // --- descrição revisada por humano não é sobrescrita ---
 $pdo->exec("UPDATE dbo.dic_tabela SET descricao = 'Contratos', situacao = 'excluir' WHERE tabela = 'MTTBCON'");

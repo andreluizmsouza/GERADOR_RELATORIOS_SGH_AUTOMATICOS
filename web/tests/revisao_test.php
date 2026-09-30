@@ -6,6 +6,7 @@ declare(strict_types=1);
 require __DIR__ . '/../src/Admin/RevisaoForm.php';
 require __DIR__ . '/../src/Metadata/Sensiveis.php';
 require __DIR__ . '/../src/Metadata/Sync.php';
+require __DIR__ . '/../src/Relacionamentos/RelacionamentoRepository.php';
 require __DIR__ . '/../src/Metadata/DicionarioRepository.php';
 
 use Elogica\Admin\RevisaoForm;

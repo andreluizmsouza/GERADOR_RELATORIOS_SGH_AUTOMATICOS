@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Elogica\Metadata;
 
+use Elogica\Relacionamentos\RelacionamentoRepository;
 use PDO;
 
 /** Persistência do dicionário (matriz única). SQL portável entre SQL Server e SQLite (testes). */
@@ -103,31 +104,30 @@ final class DicionarioRepository
         }
     }
 
-    /** @param list<array<string, string>> $fks @return int relações novas */
+    /**
+     * FKs declaradas viram ligações já confirmadas; uma FK composta é um papel com vários pares de colunas.
+     *
+     * @param list<array{origem: string, destino: string, nome: string, pares: list<array{0: string, 1: string}>}> $fks
+     * @return int relações novas
+     */
     private function gravarFks(array $fks): int
     {
         if ($fks === []) {
             return 0;
         }
-        $dic = $this->carregar();
-        $existe = $this->pdo->prepare('SELECT COUNT(*) FROM dbo.dic_relacao WHERE origem_coluna_id = :o AND destino_coluna_id = :d');
-        $ins = $this->pdo->prepare("INSERT INTO dbo.dic_relacao (origem_coluna_id, destino_coluna_id, origem, confirmada) VALUES (:o, :d, 'fk', 1)");
-        $novas = 0;
+        $nome = static fn (string $chave): string => strtoupper(str_contains($chave, '.') ? explode('.', $chave, 2)[1] : $chave);
+        $cands = [];
         foreach ($fks as $fk) {
-            $o = $dic[$fk['origem']]['colunas'][$fk['col_origem']]['id'] ?? null;
-            $d = $dic[$fk['destino']]['colunas'][$fk['col_destino']]['id'] ?? null;
-            if ($o === null || $d === null) {
-                continue;
-            }
-            $existe->execute([':o' => $o, ':d' => $d]);
-            if ((int) $existe->fetchColumn() === 0) {
-                $ins->execute([':o' => $o, ':d' => $d]);
-                $novas++;
-            }
-            $existe->closeCursor();
+            $a = $nome($fk['origem']);
+            $b = $nome($fk['destino']);
+            $cands["{$a}|{$b}"] ??= [
+                'a' => $a, 'b' => $b, 'tipo' => 'fk', 'conf' => 'alta', 'estado' => 'confirmada',
+                'evid' => 'Chave estrangeira declarada no banco.', 'aviso' => null, 'papeis' => [],
+            ];
+            $cands["{$a}|{$b}"]['papeis'][] = ['nome' => $fk['nome'], 'fonte' => 'FOREIGN KEY no SQL Server', 'pares' => $fk['pares']];
         }
 
-        return $novas;
+        return (new RelacionamentoRepository($this->pdo))->inserirCandidatos(array_values($cands), null, date('Y-m-d H:i:s'), false)['novas'];
     }
 
     /**
