@@ -1,0 +1,483 @@
+<title>Mapa de Relacionamentos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: lista de tabelas à esquerda, mapa no centro, fila de sugestões e detalhes à direita.
+   Cor: a interface é grafite; a cor fica só nas ligações (azul = FK real, verde = sugerida, roxo = confirmada). */
+:root {
+  --bg: #f1f3f7; --surface: #ffffff; --surface-2: #f6f7fa; --ink: #151b27; --muted: #576176; --line: #dbe0e9; --line-strong: #c3cad6;
+  --fk: #1d68d8; --sug: #08805d; --conf: #6f47cc; --warn: #a16207; --danger: #bf3329;
+  --fk-soft: #e4eefc; --sug-soft: #dcf3ea; --conf-soft: #ece6fa; --warn-soft: #fbf0d9;
+  --canvas: #f8f9fc; --grid: #e6e9f0; --node: #ffffff; --node-ink: #151b27; --focus-fill: #151b27; --focus-ink: #ffffff;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c111a; --surface: #141a26; --surface-2: #19202e; --ink: #e5e9f1; --muted: #97a1b4; --line: #252f43; --line-strong: #364258;
+    --fk: #6aa5ff; --sug: #3ccb9c; --conf: #ac90ff; --warn: #e2ac4d; --danger: #ff8077;
+    --fk-soft: #16264a; --sug-soft: #0f2f27; --conf-soft: #261f47; --warn-soft: #33270f;
+    --canvas: #0f1521; --grid: #1a2232; --node: #19202e; --node-ink: #e5e9f1; --focus-fill: #e5e9f1; --focus-ink: #0c111a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c111a; --surface: #141a26; --surface-2: #19202e; --ink: #e5e9f1; --muted: #97a1b4; --line: #252f43; --line-strong: #364258;
+  --fk: #6aa5ff; --sug: #3ccb9c; --conf: #ac90ff; --warn: #e2ac4d; --danger: #ff8077;
+  --fk-soft: #16264a; --sug-soft: #0f2f27; --conf-soft: #261f47; --warn-soft: #33270f;
+  --canvas: #0f1521; --grid: #1a2232; --node: #19202e; --node-ink: #e5e9f1; --focus-fill: #e5e9f1; --focus-ink: #0c111a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; padding-inline: 16px; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--fk); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-size: 0.92em; }
+.app { min-height: 100%; display: flex; flex-direction: column; gap: 12px; padding-block: 14px; max-width: 1680px; margin-inline: auto; }
+
+/* topo */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.top h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.kicker { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.brand { min-width: 0; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-inline-start: auto; align-items: center; }
+.stat { display: flex; flex-direction: column; }
+.stat b { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat span { font-size: 11px; color: var(--muted); }
+.progress { width: 160px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: flex; }
+.progress i { display: block; height: 100%; }
+.progress .p-conf { background: var(--conf); } .progress .p-sug { background: var(--sug); opacity: 0.55; }
+.tag-proto { font-size: 11px; padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 99px; color: var(--muted); }
+.link { background: none; border: 0; color: var(--fk); padding: 0; text-decoration: underline; text-underline-offset: 3px; font-size: 12px; }
+
+/* estrutura */
+.shell { display: grid; grid-template-columns: 250px minmax(0, 1fr) 360px; grid-template-rows: minmax(0, 1fr); gap: 12px; height: max(640px, calc(100vh - 118px)); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.panel-h { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+.panel-h h2 { font-size: 12px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.scroll { overflow: auto; min-height: 0; flex: 1; }
+
+/* esquerda */
+.search { width: 100%; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2); }
+.tlist { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 2px; }
+.titem { width: 100%; text-align: start; background: none; border: 1px solid transparent; border-radius: 6px; padding: 7px 8px; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; }
+.titem:hover { background: var(--surface-2); }
+.titem[aria-current="true"] { background: var(--surface-2); border-color: var(--line-strong); }
+.titem .nm { font-family: var(--font-mono); font-weight: 500; font-size: 12.5px; }
+.titem .ds { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill { font-size: 11px; font-variant-numeric: tabular-nums; padding: 0 7px; border-radius: 99px; background: var(--sug-soft); color: var(--sug); font-weight: 500; align-self: start; }
+.filters { padding: 10px 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.filters label { display: flex; align-items: center; gap: 8px; }
+.sw { width: 22px; height: 0; border-top: 2.5px solid; display: inline-block; }
+.sw.fk { border-color: var(--fk); } .sw.sug { border-color: var(--sug); border-top-style: dashed; } .sw.conf { border-color: var(--conf); }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 4px 10px; font-size: 12px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+/* centro */
+.stage { position: relative; }
+.stage-h { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.stage-h .cur { font-size: 15px; font-weight: 600; min-width: 0; }
+.stage-h .cur small { font-weight: 400; color: var(--muted); font-size: 12.5px; margin-inline-start: 6px; }
+#cy { flex: 1; min-height: 0; background: var(--canvas); background-image: radial-gradient(var(--grid) 1px, transparent 1px); background-size: 22px 22px; }
+.legend-bar { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
+.legend-bar div { display: flex; align-items: center; gap: 7px; }
+.legend-bar .hint { margin-inline-start: auto; }
+.side-cap { position: absolute; inset-block-start: 10px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); pointer-events: none; z-index: 2; }
+.side-cap.l { inset-inline-start: 12px; } .side-cap.r { inset-inline-end: 12px; text-align: end; }
+.stage #cy { position: relative; }
+.tip { position: absolute; z-index: 5; pointer-events: none; max-width: 280px; background: var(--ink); color: var(--bg); border-radius: 6px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.tip b { font-family: var(--font-mono); font-weight: 500; display: block; }
+.btn { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 6px; padding: 5px 11px; font-size: 12.5px; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.ok { background: var(--conf); color: #fff; border-color: var(--conf); }
+.btn.ghost { border-color: transparent; color: var(--muted); }
+.btn.danger { color: var(--danger); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+/* direita */
+.tabs { display: flex; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1; background: none; border: 0; padding: 10px 6px; font-size: 12.5px; color: var(--muted); border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.tabs .n { font-variant-numeric: tabular-nums; margin-inline-start: 4px; font-size: 11px; background: var(--surface-2); border-radius: 99px; padding: 0 6px; }
+.body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; background: var(--surface); }
+.card:hover, .card.on { border-color: var(--line-strong); background: var(--surface-2); }
+.card .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.card .ttl { font-family: var(--font-mono); font-weight: 500; font-size: 12.5px; overflow-wrap: anywhere; }
+.card .why { font-size: 12.5px; color: var(--muted); }
+.card .acts { display: flex; gap: 6px; margin-top: 2px; }
+.badge { font-size: 11px; border-radius: 4px; padding: 1px 6px; font-weight: 500; white-space: nowrap; }
+.b-doc, .b-chave, .b-nome { background: var(--sug-soft); color: var(--sug); }
+.b-fk { background: var(--fk-soft); color: var(--fk); } .b-manual { background: var(--conf-soft); color: var(--conf); }
+.b-alta { border: 1px solid var(--sug); color: var(--sug); } .b-media { border: 1px solid var(--warn); color: var(--warn); }
+.b-conf { background: var(--conf-soft); color: var(--conf); } .b-sug { background: var(--sug-soft); color: var(--sug); } .b-rej { background: var(--surface-2); color: var(--muted); }
+.aviso { display: flex; gap: 8px; background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; }
+.ev { border-inline-start: 3px solid var(--line-strong); padding: 2px 0 2px 10px; font-size: 12.5px; color: var(--muted); }
+h3 { font-size: 13px; margin: 0; font-weight: 600; }
+.papel { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.papel > header { background: var(--surface-2); padding: 6px 10px; font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+.papel > header span { font-weight: 400; color: var(--muted); }
+.pares { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pares td { padding: 6px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+.pares .t { color: var(--muted); font-size: 11px; display: block; }
+.pares .ar { color: var(--muted); text-align: center; width: 1.5rem; padding-inline: 0; }
+.tw { color: var(--warn); font-size: 11px; display: block; }
+.papel .src { padding: 6px 10px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12.5px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.field input { padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2); min-width: 0; width: 100%; }
+.prow { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+.empty { color: var(--muted); font-size: 13px; padding: 20px 8px; text-align: center; }
+.toast { position: fixed; inset-inline: 16px; inset-block-end: calc(16px + env(safe-area-inset-bottom, 0px)); margin-inline: auto; width: max-content; max-width: calc(100% - 32px); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 8px; display: flex; gap: 14px; align-items: center; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10; }
+.toast button { background: none; border: 0; color: inherit; text-decoration: underline; padding: 0; }
+
+@media (max-width: 1180px) { .shell { grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: 640px 480px; height: auto; } .right { grid-column: 1 / -1; } }
+@media (max-width: 760px) {
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 560px 520px; }
+  .progress { width: 110px; }
+  .stage-h { gap: 8px; }
+  .legend-bar .hint { margin-inline-start: 0; }
+  #cy { min-height: 380px; }
+  .stats { margin-inline-start: 0; }
+  .left .scroll { max-height: 220px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="kicker">Dicionário de dados · SGH</div>
+      <h1>Relacionamentos entre tabelas</h1>
+    </div>
+    <span class="tag-proto">Protótipo com dados reais do dicionário</span>
+    <div class="stats" aria-label="Resumo">
+      <div class="stat"><b id="s-conf">0</b><span>confirmadas</span></div>
+      <div class="stat"><b id="s-sug">0</b><span>aguardando revisão</span></div>
+      <div class="progress" title="Confirmadas e sugeridas" role="img" aria-label="Progresso da revisão"><i class="p-conf" id="p-conf"></i><i class="p-sug" id="p-sug"></i></div>
+      <button class="link" id="reset" type="button">Reiniciar exemplo</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="panel left" aria-label="Tabelas">
+      <div class="panel-h"><input id="busca" class="search" type="search" placeholder="Buscar tabela" aria-label="Buscar tabela"></div>
+      <div class="scroll"><ul class="tlist" id="tlist"></ul></div>
+      <div class="filters" role="group" aria-label="Filtros">
+        <div class="kicker">Mostrar</div>
+        <label><input type="checkbox" id="f-fk" checked><i class="sw fk"></i>FK declarada</label>
+        <label><input type="checkbox" id="f-doc" checked><i class="sw sug"></i>Documentação</label>
+        <label><input type="checkbox" id="f-chave" checked><i class="sw sug"></i>Chave composta</label>
+        <label><input type="checkbox" id="f-nome" checked><i class="sw sug"></i>Nome e tipo iguais</label>
+        <label><input type="checkbox" id="f-manual" checked><i class="sw conf"></i>Criada por você</label>
+        <label><input type="checkbox" id="f-rej"><i class="sw" style="border-color: var(--line-strong)"></i>Rejeitadas</label>
+      </div>
+    </aside>
+
+    <main class="panel stage" aria-label="Mapa">
+      <div class="panel-h stage-h">
+        <div class="cur" id="cur"></div>
+        <div class="seg" role="group" aria-label="Distância">
+          <button type="button" data-hops="1" aria-pressed="true">Vizinhas</button>
+          <button type="button" data-hops="2" aria-pressed="false">2 saltos</button>
+        </div>
+        <button class="btn" id="fit" type="button">Centralizar</button>
+      </div>
+      <div class="legend-bar" aria-hidden="true">
+        <div><i class="sw fk"></i>FK declarada</div>
+        <div><i class="sw sug"></i>Sugerida, aguardando você</div>
+        <div><i class="sw conf"></i>Confirmada ou criada por você</div>
+        <span class="hint">Clique numa tabela para centralizar · numa linha para ver as colunas</span>
+      </div>
+      <div style="position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column">
+        <span class="side-cap l">◀ Aponta para (consulta)</span><span class="side-cap r">É apontada por (filhas) ▶</span>
+        <div id="cy" role="img" aria-label="Mapa de relacionamentos da tabela selecionada"></div>
+      </div>
+      <div class="tip" id="tip" hidden></div>
+    </main>
+
+    <aside class="panel right" aria-label="Revisão">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tab-sug" aria-selected="true" data-tab="sug">Sugestões<span class="n" id="n-sug">0</span></button>
+        <button role="tab" id="tab-det" aria-selected="false" data-tab="det">Detalhe</button>
+        <button role="tab" id="tab-new" aria-selected="false" data-tab="new">Nova ligação</button>
+      </div>
+      <div class="scroll"><div class="body" id="body"></div></div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<datalist id="dl-a"></datalist><datalist id="dl-b"></datalist>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<script>
+const DATA = /*DADOS*/;
+const T = DATA.tabelas;
+const ORIGEM = { fk: 'FK declarada', doc: 'Documentação', chave: 'Chave composta', nome: 'Nome e tipo', manual: 'Criada por você' };
+const ESTADO = { confirmada: 'Confirmada', sugerida: 'Sugerida', rejeitada: 'Rejeitada' };
+const CONF = { alta: 'Confiança alta', media: 'Confiança média' };
+const STORE = 'rel-proto-v1';
+const ORIG = JSON.parse(JSON.stringify(DATA.relacoes));
+let R = load() || JSON.parse(JSON.stringify(ORIG));
+const S = { focus: 'MTTBCON', hops: 1, sel: null, tab: 'sug', busca: '', f: { fk: true, doc: true, chave: true, nome: true, manual: true, rej: false }, last: null };
+let cy = null, toastTimer = null;
+
+function load() { try { const v = localStorage.getItem(STORE); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function save() { try { localStorage.setItem(STORE, JSON.stringify(R)); } catch (e) { /* sem armazenamento: segue sem persistir */ } }
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const short = (d, n = 26) => (d.length > n ? d.slice(0, n - 1) + '…' : d);
+const npar = (r) => r.papeis.reduce((a, p) => a + p.pares.length, 0);
+
+function visible(r) {
+  if (r.estado === 'rejeitada' && !S.f.rej) return false;
+  return S.f[r.origem] !== false;
+}
+function neighborhood() {
+  const rs = R.filter(visible);
+  const dist = { [S.focus]: 0 };
+  let frontier = [S.focus];
+  for (let h = 1; h <= S.hops; h++) {
+    const next = [];
+    for (const r of rs) for (const [x, y] of [[r.a, r.b], [r.b, r.a]]) {
+      if (frontier.includes(x) && !(y in dist)) { dist[y] = h; next.push(y); }
+    }
+    frontier = next;
+  }
+  const edges = rs.filter((r) => r.a in dist && r.b in dist);
+  return { dist, edges };
+}
+const pend = (t) => R.filter((r) => r.estado === 'sugerida' && (r.a === t || r.b === t)).length;
+
+/* ---------- topo e lista ---------- */
+function renderTop() {
+  const c = R.filter((r) => r.estado === 'confirmada').length, s = R.filter((r) => r.estado === 'sugerida').length, tot = R.filter((r) => r.estado !== 'rejeitada').length || 1;
+  $('#s-conf').textContent = c; $('#s-sug').textContent = s;
+  $('#p-conf').style.width = (c / tot * 100) + '%'; $('#p-sug').style.width = (s / tot * 100) + '%';
+}
+function renderList() {
+  const q = S.busca.trim().toUpperCase();
+  const names = Object.keys(T).filter((n) => !q || n.includes(q) || T[n].d.toUpperCase().includes(q));
+  names.sort((a, b) => (a === S.focus ? -1 : b === S.focus ? 1 : pend(b) - pend(a) || a.localeCompare(b)));
+  $('#tlist').innerHTML = names.map((n) => {
+    const p = pend(n);
+    return `<li><button class="titem" type="button" data-t="${n}" aria-current="${n === S.focus}"><span class="nm">${n}</span>${p ? `<span class="pill" title="${p} aguardando revisão">${p}</span>` : '<span></span>'}<span class="ds">${esc(T[n].d || 'sem documentação')}</span></button></li>`;
+  }).join('') || '<li class="empty">Nenhuma tabela encontrada.</li>';
+}
+
+/* ---------- mapa ---------- */
+function edgeColor(r) { return r.origem === 'fk' ? css('--fk') : r.estado === 'confirmada' ? css('--conf') : r.estado === 'sugerida' ? css('--sug') : css('--line-strong'); }
+function styleSheet() {
+  const ink = css('--node-ink'), node = css('--node'), line = css('--line-strong');
+  return [
+    { selector: 'node', style: { shape: 'round-rectangle', 'background-color': node, 'border-width': 1.5, 'border-color': line, label: 'data(label)', 'text-wrap': 'wrap', 'text-valign': 'center', 'text-halign': 'center', color: ink, 'font-family': css('--font-mono'), 'font-size': 15, width: 'label', height: 'label', padding: '10px', 'text-max-width': 210 } },
+    { selector: 'node.pend', style: { 'border-color': css('--sug'), 'border-width': 2 } },
+    { selector: 'node.focus', style: { 'background-color': css('--focus-fill'), color: css('--focus-ink'), 'border-color': css('--focus-fill'), 'font-size': 16, padding: '16px', 'font-weight': 600, 'text-max-width': 240, 'line-height': 1.3 } },
+    { selector: 'edge', style: { width: 'data(w)', 'line-color': 'data(cor)', 'target-arrow-color': 'data(cor)', 'target-arrow-shape': 'triangle', 'arrow-scale': 1.1, 'curve-style': 'bezier', label: '', 'font-size': 12, color: css('--muted'), 'text-background-color': css('--canvas'), 'text-background-opacity': 1, 'text-background-padding': '2px', 'text-rotation': 'autorotate', opacity: 0.95 } },
+    { selector: 'edge.lab, edge.sel', style: { label: 'data(rot)' } },
+    { selector: 'edge.sug', style: { 'line-style': 'dashed', 'line-dash-pattern': [7, 5] } },
+    { selector: 'edge.rej', style: { 'line-style': 'dotted', opacity: 0.6 } },
+    { selector: 'edge.sel', style: { width: 5, opacity: 1, 'z-index': 99, 'underlay-color': css('--fk'), 'underlay-opacity': 0.16, 'underlay-padding': 6 } },
+  ];
+}
+function renderGraph(fit = true) {
+  const { dist, edges } = neighborhood();
+  const els = [];
+  for (const [t, d] of Object.entries(dist)) {
+    els.push({ data: { id: t, label: t === S.focus ? t + '\n' + short(T[t].d || 'sem documentação', 30) : t, ring: d }, classes: (t === S.focus ? 'focus ' : '') + (pend(t) ? 'pend' : '') });
+  }
+  for (const r of edges) {
+    els.push({ data: { id: r.id, source: r.a, target: r.b, cor: edgeColor(r), w: Math.min(2 + npar(r) * 0.35, 4), rot: r.papeis.length > 1 ? r.papeis.length + ' papéis' : npar(r) + (npar(r) > 1 ? ' colunas' : ' coluna') }, classes: (edges.length <= 8 ? 'lab ' : '') + (r.estado === 'sugerida' ? 'sug ' : '') + (r.estado === 'rejeitada' ? 'rej ' : '') + (S.sel === r.id ? 'sel' : '') });
+  }
+  if (!cy) {
+    cy = cytoscape({ container: $('#cy'), elements: els, style: styleSheet(), wheelSensitivity: 0.25, minZoom: 0.3, maxZoom: 1.25, boxSelectionEnabled: false });
+    cy.on('tap', 'node', (e) => { setFocus(e.target.id()); });
+    cy.on('tap', 'edge', (e) => { select(e.target.id()); });
+    cy.on('tap', (e) => { if (e.target === cy) { S.sel = null; cy.edges().removeClass('sel'); if (S.tab === 'det') renderPanel(); } });
+    cy.on('mouseover', 'node', (e) => {
+      $('#cy').style.cursor = 'pointer';
+      const id = e.target.id(), tip = $('#tip'), p = e.target.renderedPosition(), c = $('#cy');
+      tip.innerHTML = `<b>${id}</b>${esc(T[id].d || 'Sem documentação')} · ${T[id].n} campos`;
+      tip.hidden = false;
+      tip.style.left = Math.min(Math.max(p.x + c.offsetLeft - 20, 8), c.offsetLeft + c.clientWidth - 240) + 'px';
+      tip.style.top = (p.y + c.offsetTop + 22) + 'px';
+    });
+    cy.on('mouseout', 'node', () => { $('#cy').style.cursor = 'default'; $('#tip').hidden = true; });
+  } else {
+    cy.json({ elements: els }); cy.style(styleSheet());
+  }
+  const pos = posicoes(dist, edges);
+  cy.layout({ name: 'preset', positions: (n) => pos[n.id()], fit, padding: 28, animate: false }).run();
+  const f = T[S.focus];
+  $('#cur').innerHTML = `<span class="mono">${S.focus}</span><small>${esc(f.d || 'sem documentação')} · ${edges.length} ligações</small>`;
+  const cyEl = $('#cy'); cyEl.setAttribute('aria-label', `Mapa de relacionamentos de ${S.focus}: ${edges.length} ligações`);
+}
+
+/* Posiciona o mapa: a tabela central no meio; à esquerda as que ela consulta (destino da FK),
+   à direita as que a consultam (origem da FK). Segundo anel: perto da vizinha a que se ligam. */
+function posicoes(dist, edges) {
+  const w = $('#cy').clientWidth || 800, h = $('#cy').clientHeight || 600;
+  const rx = w * 0.34, ry = h * 0.36, pos = { [S.focus]: { x: 0, y: 0 } }, ang = {};
+  const pais = [], filhas = [];
+  for (const r of edges) {
+    if (r.a === S.focus && dist[r.b] === 1) pais.push(r.b); else if (r.b === S.focus && dist[r.a] === 1) filhas.push(r.a);
+  }
+  const uniq = (l) => [...new Set(l)].sort();
+  const lado = (lista, centro) => {
+    const n = lista.length, abre = Math.min(150, Math.max(30, n * 17)) * Math.PI / 180;
+    lista.forEach((t, i) => {
+      const a = centro + (n === 1 ? 0 : (i / (n - 1) - 0.5) * abre), esc2 = n > 9 && i % 2 ? 0.8 : 1;
+      ang[t] = a; pos[t] = { x: Math.cos(a) * rx * esc2, y: Math.sin(a) * ry * esc2 };
+    });
+  };
+  lado(uniq(pais).filter((t) => !filhas.includes(t)), Math.PI); lado(uniq(filhas).filter((t) => !pais.includes(t)), 0);
+  const ambos = uniq(pais.filter((t) => filhas.includes(t)));
+  ambos.forEach((t, i) => { const a = -Math.PI / 2 + (i - (ambos.length - 1) / 2) * 0.5; ang[t] = a; pos[t] = { x: Math.cos(a) * rx * 0.7, y: Math.sin(a) * ry * 0.95 }; });
+  let k = 0;
+  for (const [t, d] of Object.entries(dist)) {
+    if (d < 2) continue;
+    const viz = edges.find((r) => (r.a === t && dist[r.b] === 1) || (r.b === t && dist[r.a] === 1));
+    const u = viz ? (viz.a === t ? viz.b : viz.a) : null, a = (u && ang[u] !== undefined ? ang[u] : 0) + ((k++ % 3) - 1) * 0.22;
+    pos[t] = { x: Math.cos(a) * rx * 1.42, y: Math.sin(a) * ry * 1.42 };
+  }
+  return pos;
+}
+
+/* ---------- painel direito ---------- */
+function badgeOrigem(r) { return `<span class="badge b-${r.origem}">${ORIGEM[r.origem]}</span>`; }
+function badgeEstado(r) { return `<span class="badge ${r.estado === 'confirmada' ? 'b-conf' : r.estado === 'sugerida' ? 'b-sug' : 'b-rej'}">${ESTADO[r.estado]}</span>`; }
+function actions(r, big) {
+  if (r.estado === 'sugerida') return `<div class="acts"><button class="btn ok" data-act="ok" data-id="${r.id}" type="button">Aprovar</button><button class="btn" data-act="no" data-id="${r.id}" type="button">Rejeitar</button>${big ? '' : `<button class="btn ghost" data-act="ver" data-id="${r.id}" type="button">Ver colunas</button>`}</div>`;
+  if (r.estado === 'rejeitada') return `<div class="acts"><button class="btn" data-act="re" data-id="${r.id}" type="button">Voltar a sugerida</button></div>`;
+  return `<div class="acts"><button class="btn" data-act="re" data-id="${r.id}" type="button">Voltar a sugerida</button>${r.origem === 'manual' ? `<button class="btn danger" data-act="del" data-id="${r.id}" type="button">Excluir</button>` : ''}</div>`;
+}
+function tipoAviso(p) { return p[1] !== p[3] ? `<span class="tw">tipos diferentes: ${esc(p[1])} → ${esc(p[3])}</span>` : `<span class="t">${esc(p[1])}</span>`; }
+function renderSug() {
+  const { edges } = neighborhood();
+  const list = edges.filter((r) => r.estado === 'sugerida').sort((a, b) => (a.conf === b.conf ? 0 : a.conf === 'alta' ? -1 : 1) || a.a.localeCompare(b.a));
+  const altas = list.filter((r) => r.conf === 'alta' && !r.aviso);
+  let h = list.length ? `<button class="btn primary" data-act="lote" type="button" ${altas.length ? '' : 'disabled'}>Aprovar as ${altas.length} de confiança alta e sem alerta</button><div class="kicker">Aguardando você · ${list.length}</div>` : '';
+  h += list.map((r) => `<div class="card ${S.sel === r.id ? 'on' : ''}" data-id="${r.id}"><div class="row"><span class="ttl">${r.a} → ${r.b}</span></div><div class="row">${badgeOrigem(r)}<span class="badge b-${r.conf}">${CONF[r.conf]}</span><span class="badge b-doc" style="background:var(--surface-2);color:var(--muted)">${npar(r)} col · ${r.papeis.length > 1 ? r.papeis.length + ' papéis' : 'N:1'}</span></div><div class="why">${esc(r.evid)}</div>${r.aviso ? `<div class="aviso"><span aria-hidden="true">!</span><span>${esc(r.aviso)}</span></div>` : ''}${actions(r)}</div>`).join('');
+  if (!list.length) h = '<div class="empty">Nada aguardando revisão neste mapa.<br>Mude a tabela ou os filtros para ver outras ligações.</div>';
+  return h;
+}
+function renderDet() {
+  const r = R.find((x) => x.id === S.sel);
+  if (!r) {
+    const t = T[S.focus], out = R.filter((x) => x.a === S.focus && x.estado !== 'rejeitada'), inn = R.filter((x) => x.b === S.focus && x.estado !== 'rejeitada');
+    return `<div><div class="kicker">Tabela</div><h3 class="mono" style="font-size:15px">${S.focus}</h3><p style="margin:.3rem 0 0;color:var(--muted)">${esc(t.d || 'Sem documentação. Importe a documentação ou descreva a tabela na revisão.')}</p></div>
+      <dl class="kv"><dt>Campos</dt><dd>${t.n}</dd><dt>Aponta para</dt><dd>${out.length} tabelas</dd><dt>É apontada por</dt><dd>${inn.length} tabelas</dd><dt>Aguardando</dt><dd>${pend(S.focus)} ligações</dd></dl>
+      <div class="empty" style="padding:10px 0">Clique numa linha do mapa ou num cartão de sugestão para ver as colunas de cada ligação.</div>`;
+  }
+  const pap = r.papeis.map((p) => `<section class="papel"><header>${esc(p.nome)}<span>${p.pares.length} ${p.pares.length > 1 ? 'pares' : 'par'}</span></header><table class="pares">${p.pares.map((q) => `<tr><td><span class="mono">${r.a}.${esc(q[0])}</span>${tipoAviso(q)}</td><td class="ar" aria-hidden="true">→</td><td><span class="mono">${r.b}.${esc(q[2])}</span><span class="t">${esc(q[3])}</span></td></tr>`).join('')}</table><div class="src">${esc(p.fonte)}</div></section>`).join('');
+  return `<div class="row" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><h3 class="mono" style="font-size:14px;overflow-wrap:anywhere">${r.a} → ${r.b}</h3></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${badgeEstado(r)}${badgeOrigem(r)}<span class="badge b-${r.conf}">${CONF[r.conf]}</span></div>
+    <div class="ev">${esc(r.evid)}</div>${r.aviso ? `<div class="aviso"><span aria-hidden="true">!</span><span>${esc(r.aviso)}</span></div>` : ''}
+    <dl class="kv"><dt>Cardinalidade</dt><dd>N:1 (${r.a} tem vários por ${r.b})</dd><dt>Colunas</dt><dd>${npar(r)} em ${r.papeis.length} ${r.papeis.length > 1 ? 'papéis' : 'papel'}</dd>${r.por ? `<dt>Origem</dt><dd>${esc(r.por)}</dd>` : ''}</dl>
+    ${pap}${actions(r, true)}`;
+}
+function renderNew() {
+  const opts = Object.keys(T).map((n) => `<option value="${n}">`).join('');
+  $('#dl-a').innerHTML = opts; $('#dl-b').innerHTML = opts;
+  return `<p style="margin:0;color:var(--muted)">Crie uma ligação que o sistema não encontrou. Ela entra já confirmada.</p>
+    <div class="field"><label for="n-a">Tabela de origem (o lado “N”)</label><input id="n-a" list="dl-a" value="${S.focus}" autocomplete="off"></div>
+    <div class="field"><label for="n-b">Tabela de destino (o lado “1”)</label><input id="n-b" list="dl-b" placeholder="ex.: MTTBSE1" autocomplete="off"></div>
+    <div class="field"><label for="n-p">Nome do papel</label><input id="n-p" placeholder="ex.: Contrato de gaveta" autocomplete="off"></div>
+    <div class="kicker">Colunas que se correspondem</div>
+    <div id="n-pares" style="display:flex;flex-direction:column;gap:6px"></div>
+    <datalist id="dl-ca"></datalist><datalist id="dl-cb"></datalist>
+    <div style="display:flex;gap:6px"><button class="btn" id="n-add" type="button">Adicionar par</button><button class="btn ok" id="n-go" type="button">Criar ligação</button></div>
+    <div class="aviso" id="n-msg" hidden></div>`;
+}
+function fillCols() {
+  const a = $('#n-a'), b = $('#n-b'); if (!a) return;
+  const opt = (t) => (T[t] ? T[t].c.map((c) => `<option value="${esc(c[0])}">${esc(c[1])}</option>`).join('') : '');
+  $('#dl-ca').innerHTML = opt(a.value.toUpperCase()); $('#dl-cb').innerHTML = opt(b.value.toUpperCase());
+}
+function addPar(x = '', y = '') {
+  const d = document.createElement('div'); d.className = 'prow';
+  d.innerHTML = `<input list="dl-ca" placeholder="coluna de origem" value="${esc(x)}" aria-label="Coluna de origem"><input list="dl-cb" placeholder="coluna de destino" value="${esc(y)}" aria-label="Coluna de destino"><button class="btn ghost" type="button" aria-label="Remover par">×</button>`;
+  d.querySelector('button').onclick = () => d.remove();
+  $('#n-pares').appendChild(d);
+}
+function renderPanel() {
+  document.querySelectorAll('.tabs [role=tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
+  const { edges } = neighborhood();
+  $('#n-sug').textContent = edges.filter((r) => r.estado === 'sugerida').length;
+  const body = $('#body');
+  body.innerHTML = S.tab === 'sug' ? renderSug() : S.tab === 'det' ? renderDet() : renderNew();
+  if (S.tab === 'new') {
+    addPar('CODEMP', 'CODEMP'); fillCols();
+    $('#n-a').oninput = fillCols; $('#n-b').oninput = fillCols;
+    $('#n-add').onclick = () => addPar();
+    $('#n-go').onclick = createManual;
+  }
+}
+function createManual() {
+  const a = $('#n-a').value.toUpperCase().trim(), b = $('#n-b').value.toUpperCase().trim(), nome = $('#n-p').value.trim() || 'Ligação manual';
+  const msg = $('#n-msg'); const fail = (t) => { msg.hidden = false; msg.textContent = t; };
+  if (!T[a] || !T[b]) return fail('Escolha duas tabelas da lista.');
+  if (a === b) return fail('Origem e destino devem ser tabelas diferentes.');
+  const pares = [];
+  for (const row of document.querySelectorAll('#n-pares .prow')) {
+    const [x, y] = [...row.querySelectorAll('input')].map((i) => i.value.trim());
+    if (!x && !y) continue;
+    const cx = T[a].c.find((c) => c[0].toUpperCase() === x.toUpperCase()), cy2 = T[b].c.find((c) => c[0].toUpperCase() === y.toUpperCase());
+    if (!cx || !cy2) return fail(`Coluna não encontrada: ${!cx ? a + '.' + x : b + '.' + y}.`);
+    pares.push([cx[0], cx[1], cy2[0], cy2[1]]);
+  }
+  if (!pares.length) return fail('Informe ao menos um par de colunas.');
+  const dif = pares.some((p) => p[1] !== p[3]);
+  R.push({ id: 'm' + Date.now(), a, b, origem: 'manual', estado: 'confirmada', conf: 'alta', evid: 'Ligação criada por você neste protótipo.', por: 'Criada por você', papeis: [{ nome, pares, fonte: 'Criada à mão' }], ...(dif ? { aviso: 'Alguns pares têm tipos diferentes. O gerador precisará converter no JOIN.' } : {}) });
+  save(); S.focus = a; S.sel = R[R.length - 1].id; S.tab = 'det'; refresh(); toast('Ligação criada e confirmada.');
+}
+
+/* ---------- ações ---------- */
+function setEstado(id, estado, msg) {
+  const r = R.find((x) => x.id === id); if (!r) return;
+  S.last = { id, estado: r.estado }; r.estado = estado; save(); refresh(); toast(msg, true);
+}
+function select(id) { S.sel = id; S.tab = 'det'; if (cy) { cy.edges().removeClass('sel'); cy.getElementById(id).addClass('sel'); } renderPanel(); }
+function setFocus(t) { S.focus = t; S.sel = null; refresh(true); }
+function refresh(fit = true) { renderTop(); renderList(); renderGraph(fit); renderPanel(); }
+function toast(msg, undo) {
+  const el = $('#toast'); el.hidden = false; el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button" id="undo">Desfazer</button>' : ''}`;
+  if (undo) $('#undo').onclick = () => { if (S.last) { const r = R.find((x) => x.id === S.last.id); if (r) { r.estado = S.last.estado; save(); refresh(false); } } el.hidden = true; };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 5000);
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-t]'); if (t) return setFocus(t.dataset.t);
+  const tab = e.target.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; return renderPanel(); }
+  const hp = e.target.closest('[data-hops]'); if (hp) { S.hops = +hp.dataset.hops; document.querySelectorAll('[data-hops]').forEach((b) => b.setAttribute('aria-pressed', String(b === hp))); return refresh(); }
+  const a = e.target.closest('[data-act]');
+  if (a) {
+    const id = a.dataset.id;
+    if (a.dataset.act === 'ok') return setEstado(id, 'confirmada', 'Ligação aprovada.');
+    if (a.dataset.act === 'no') return setEstado(id, 'rejeitada', 'Ligação rejeitada.');
+    if (a.dataset.act === 're') return setEstado(id, 'sugerida', 'Voltou para as sugestões.');
+    if (a.dataset.act === 'ver') return select(id);
+    if (a.dataset.act === 'del') { R = R.filter((x) => x.id !== id); S.sel = null; S.tab = 'sug'; save(); refresh(false); return toast('Ligação excluída.'); }
+    if (a.dataset.act === 'lote') {
+      const { edges } = neighborhood(); const alvo = edges.filter((r) => r.estado === 'sugerida' && r.conf === 'alta' && !r.aviso);
+      alvo.forEach((r) => { r.estado = 'confirmada'; }); save(); refresh(false); return toast(`${alvo.length} ligações aprovadas.`);
+    }
+  }
+  const card = e.target.closest('.card[data-id]'); if (card) select(card.dataset.id);
+});
+$('#busca').addEventListener('input', (e) => { S.busca = e.target.value; renderList(); });
+$('#fit').addEventListener('click', () => cy && cy.fit(undefined, 30));
+$('#reset').addEventListener('click', () => { R = JSON.parse(JSON.stringify(ORIG)); S.sel = null; save(); refresh(); toast('Exemplo reiniciado.'); });
+for (const k of Object.keys(S.f)) $('#f-' + k).addEventListener('change', (e) => { S.f[k] = e.target.checked; refresh(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => refresh(false));
+new MutationObserver(() => refresh(false)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+refresh();
+</script>

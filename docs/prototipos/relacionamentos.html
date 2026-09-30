@@ -1,0 +1,483 @@
+<title>Mapa de Relacionamentos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: lista de tabelas à esquerda, mapa no centro, fila de sugestões e detalhes à direita.
+   Cor: a interface é grafite; a cor fica só nas ligações (azul = FK real, verde = sugerida, roxo = confirmada). */
+:root {
+  --bg: #f1f3f7; --surface: #ffffff; --surface-2: #f6f7fa; --ink: #151b27; --muted: #576176; --line: #dbe0e9; --line-strong: #c3cad6;
+  --fk: #1d68d8; --sug: #08805d; --conf: #6f47cc; --warn: #a16207; --danger: #bf3329;
+  --fk-soft: #e4eefc; --sug-soft: #dcf3ea; --conf-soft: #ece6fa; --warn-soft: #fbf0d9;
+  --canvas: #f8f9fc; --grid: #e6e9f0; --node: #ffffff; --node-ink: #151b27; --focus-fill: #151b27; --focus-ink: #ffffff;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c111a; --surface: #141a26; --surface-2: #19202e; --ink: #e5e9f1; --muted: #97a1b4; --line: #252f43; --line-strong: #364258;
+    --fk: #6aa5ff; --sug: #3ccb9c; --conf: #ac90ff; --warn: #e2ac4d; --danger: #ff8077;
+    --fk-soft: #16264a; --sug-soft: #0f2f27; --conf-soft: #261f47; --warn-soft: #33270f;
+    --canvas: #0f1521; --grid: #1a2232; --node: #19202e; --node-ink: #e5e9f1; --focus-fill: #e5e9f1; --focus-ink: #0c111a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c111a; --surface: #141a26; --surface-2: #19202e; --ink: #e5e9f1; --muted: #97a1b4; --line: #252f43; --line-strong: #364258;
+  --fk: #6aa5ff; --sug: #3ccb9c; --conf: #ac90ff; --warn: #e2ac4d; --danger: #ff8077;
+  --fk-soft: #16264a; --sug-soft: #0f2f27; --conf-soft: #261f47; --warn-soft: #33270f;
+  --canvas: #0f1521; --grid: #1a2232; --node: #19202e; --node-ink: #e5e9f1; --focus-fill: #e5e9f1; --focus-ink: #0c111a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; padding-inline: 16px; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--fk); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-size: 0.92em; }
+.app { min-height: 100%; display: flex; flex-direction: column; gap: 12px; padding-block: 14px; max-width: 1680px; margin-inline: auto; }
+
+/* topo */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.top h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.kicker { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.brand { min-width: 0; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-inline-start: auto; align-items: center; }
+.stat { display: flex; flex-direction: column; }
+.stat b { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat span { font-size: 11px; color: var(--muted); }
+.progress { width: 160px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: flex; }
+.progress i { display: block; height: 100%; }
+.progress .p-conf { background: var(--conf); } .progress .p-sug { background: var(--sug); opacity: 0.55; }
+.tag-proto { font-size: 11px; padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 99px; color: var(--muted); }
+.link { background: none; border: 0; color: var(--fk); padding: 0; text-decoration: underline; text-underline-offset: 3px; font-size: 12px; }
+
+/* estrutura */
+.shell { display: grid; grid-template-columns: 250px minmax(0, 1fr) 360px; grid-template-rows: minmax(0, 1fr); gap: 12px; height: max(640px, calc(100vh - 118px)); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.panel-h { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+.panel-h h2 { font-size: 12px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.scroll { overflow: auto; min-height: 0; flex: 1; }
+
+/* esquerda */
+.search { width: 100%; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2); }
+.tlist { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 2px; }
+.titem { width: 100%; text-align: start; background: none; border: 1px solid transparent; border-radius: 6px; padding: 7px 8px; display: grid; grid-template-columns: 1fr auto; gap: 0 8px; }
+.titem:hover { background: var(--surface-2); }
+.titem[aria-current="true"] { background: var(--surface-2); border-color: var(--line-strong); }
+.titem .nm { font-family: var(--font-mono); font-weight: 500; font-size: 12.5px; }
+.titem .ds { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill { font-size: 11px; font-variant-numeric: tabular-nums; padding: 0 7px; border-radius: 99px; background: var(--sug-soft); color: var(--sug); font-weight: 500; align-self: start; }
+.filters { padding: 10px 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.filters label { display: flex; align-items: center; gap: 8px; }
+.sw { width: 22px; height: 0; border-top: 2.5px solid; display: inline-block; }
+.sw.fk { border-color: var(--fk); } .sw.sug { border-color: var(--sug); border-top-style: dashed; } .sw.conf { border-color: var(--conf); }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 4px 10px; font-size: 12px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+/* centro */
+.stage { position: relative; }
+.stage-h { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.stage-h .cur { font-size: 15px; font-weight: 600; min-width: 0; }
+.stage-h .cur small { font-weight: 400; color: var(--muted); font-size: 12.5px; margin-inline-start: 6px; }
+#cy { flex: 1; min-height: 0; background: var(--canvas); background-image: radial-gradient(var(--grid) 1px, transparent 1px); background-size: 22px 22px; }
+.legend-bar { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
+.legend-bar div { display: flex; align-items: center; gap: 7px; }
+.legend-bar .hint { margin-inline-start: auto; }
+.side-cap { position: absolute; inset-block-start: 10px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); pointer-events: none; z-index: 2; }
+.side-cap.l { inset-inline-start: 12px; } .side-cap.r { inset-inline-end: 12px; text-align: end; }
+.stage #cy { position: relative; }
+.tip { position: absolute; z-index: 5; pointer-events: none; max-width: 280px; background: var(--ink); color: var(--bg); border-radius: 6px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.tip b { font-family: var(--font-mono); font-weight: 500; display: block; }
+.btn { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 6px; padding: 5px 11px; font-size: 12.5px; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.ok { background: var(--conf); color: #fff; border-color: var(--conf); }
+.btn.ghost { border-color: transparent; color: var(--muted); }
+.btn.danger { color: var(--danger); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+/* direita */
+.tabs { display: flex; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1; background: none; border: 0; padding: 10px 6px; font-size: 12.5px; color: var(--muted); border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.tabs .n { font-variant-numeric: tabular-nums; margin-inline-start: 4px; font-size: 11px; background: var(--surface-2); border-radius: 99px; padding: 0 6px; }
+.body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; background: var(--surface); }
+.card:hover, .card.on { border-color: var(--line-strong); background: var(--surface-2); }
+.card .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.card .ttl { font-family: var(--font-mono); font-weight: 500; font-size: 12.5px; overflow-wrap: anywhere; }
+.card .why { font-size: 12.5px; color: var(--muted); }
+.card .acts { display: flex; gap: 6px; margin-top: 2px; }
+.badge { font-size: 11px; border-radius: 4px; padding: 1px 6px; font-weight: 500; white-space: nowrap; }
+.b-doc, .b-chave, .b-nome { background: var(--sug-soft); color: var(--sug); }
+.b-fk { background: var(--fk-soft); color: var(--fk); } .b-manual { background: var(--conf-soft); color: var(--conf); }
+.b-alta { border: 1px solid var(--sug); color: var(--sug); } .b-media { border: 1px solid var(--warn); color: var(--warn); }
+.b-conf { background: var(--conf-soft); color: var(--conf); } .b-sug { background: var(--sug-soft); color: var(--sug); } .b-rej { background: var(--surface-2); color: var(--muted); }
+.aviso { display: flex; gap: 8px; background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; }
+.ev { border-inline-start: 3px solid var(--line-strong); padding: 2px 0 2px 10px; font-size: 12.5px; color: var(--muted); }
+h3 { font-size: 13px; margin: 0; font-weight: 600; }
+.papel { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.papel > header { background: var(--surface-2); padding: 6px 10px; font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+.papel > header span { font-weight: 400; color: var(--muted); }
+.pares { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pares td { padding: 6px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+.pares .t { color: var(--muted); font-size: 11px; display: block; }
+.pares .ar { color: var(--muted); text-align: center; width: 1.5rem; padding-inline: 0; }
+.tw { color: var(--warn); font-size: 11px; display: block; }
+.papel .src { padding: 6px 10px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12.5px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.field input { padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2); min-width: 0; width: 100%; }
+.prow { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+.empty { color: var(--muted); font-size: 13px; padding: 20px 8px; text-align: center; }
+.toast { position: fixed; inset-inline: 16px; inset-block-end: calc(16px + env(safe-area-inset-bottom, 0px)); margin-inline: auto; width: max-content; max-width: calc(100% - 32px); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 8px; display: flex; gap: 14px; align-items: center; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 10; }
+.toast button { background: none; border: 0; color: inherit; text-decoration: underline; padding: 0; }
+
+@media (max-width: 1180px) { .shell { grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: 640px 480px; height: auto; } .right { grid-column: 1 / -1; } }
+@media (max-width: 760px) {
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 560px 520px; }
+  .progress { width: 110px; }
+  .stage-h { gap: 8px; }
+  .legend-bar .hint { margin-inline-start: 0; }
+  #cy { min-height: 380px; }
+  .stats { margin-inline-start: 0; }
+  .left .scroll { max-height: 220px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="kicker">Dicionário de dados · SGH</div>
+      <h1>Relacionamentos entre tabelas</h1>
+    </div>
+    <span class="tag-proto">Protótipo com dados reais do dicionário</span>
+    <div class="stats" aria-label="Resumo">
+      <div class="stat"><b id="s-conf">0</b><span>confirmadas</span></div>
+      <div class="stat"><b id="s-sug">0</b><span>aguardando revisão</span></div>
+      <div class="progress" title="Confirmadas e sugeridas" role="img" aria-label="Progresso da revisão"><i class="p-conf" id="p-conf"></i><i class="p-sug" id="p-sug"></i></div>
+      <button class="link" id="reset" type="button">Reiniciar exemplo</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="panel left" aria-label="Tabelas">
+      <div class="panel-h"><input id="busca" class="search" type="search" placeholder="Buscar tabela" aria-label="Buscar tabela"></div>
+      <div class="scroll"><ul class="tlist" id="tlist"></ul></div>
+      <div class="filters" role="group" aria-label="Filtros">
+        <div class="kicker">Mostrar</div>
+        <label><input type="checkbox" id="f-fk" checked><i class="sw fk"></i>FK declarada</label>
+        <label><input type="checkbox" id="f-doc" checked><i class="sw sug"></i>Documentação</label>
+        <label><input type="checkbox" id="f-chave" checked><i class="sw sug"></i>Chave composta</label>
+        <label><input type="checkbox" id="f-nome" checked><i class="sw sug"></i>Nome e tipo iguais</label>
+        <label><input type="checkbox" id="f-manual" checked><i class="sw conf"></i>Criada por você</label>
+        <label><input type="checkbox" id="f-rej"><i class="sw" style="border-color: var(--line-strong)"></i>Rejeitadas</label>
+      </div>
+    </aside>
+
+    <main class="panel stage" aria-label="Mapa">
+      <div class="panel-h stage-h">
+        <div class="cur" id="cur"></div>
+        <div class="seg" role="group" aria-label="Distância">
+          <button type="button" data-hops="1" aria-pressed="true">Vizinhas</button>
+          <button type="button" data-hops="2" aria-pressed="false">2 saltos</button>
+        </div>
+        <button class="btn" id="fit" type="button">Centralizar</button>
+      </div>
+      <div class="legend-bar" aria-hidden="true">
+        <div><i class="sw fk"></i>FK declarada</div>
+        <div><i class="sw sug"></i>Sugerida, aguardando você</div>
+        <div><i class="sw conf"></i>Confirmada ou criada por você</div>
+        <span class="hint">Clique numa tabela para centralizar · numa linha para ver as colunas</span>
+      </div>
+      <div style="position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column">
+        <span class="side-cap l">◀ Aponta para (consulta)</span><span class="side-cap r">É apontada por (filhas) ▶</span>
+        <div id="cy" role="img" aria-label="Mapa de relacionamentos da tabela selecionada"></div>
+      </div>
+      <div class="tip" id="tip" hidden></div>
+    </main>
+
+    <aside class="panel right" aria-label="Revisão">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tab-sug" aria-selected="true" data-tab="sug">Sugestões<span class="n" id="n-sug">0</span></button>
+        <button role="tab" id="tab-det" aria-selected="false" data-tab="det">Detalhe</button>
+        <button role="tab" id="tab-new" aria-selected="false" data-tab="new">Nova ligação</button>
+      </div>
+      <div class="scroll"><div class="body" id="body"></div></div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<datalist id="dl-a"></datalist><datalist id="dl-b"></datalist>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<script>
+const DATA = {"tabelas":{"MTTBCON":{"d":"Tabela de Contratos","n":332,"c":[["CODEMP","smallint"],["REGIAO","smallint"],["NUCLEO","smallint"],["CONTRATO","char(10)"],["FISJUR","smallint"],["ADQ1_CPFCGC","char(14)"],["ADQ1_PART","float"],["ADQ2_CPF","char(11)"],["ADQ2_PART","float"],["ADQ3_CPF","char(11)"],["ADQ3_PART","float"],["ADQ4_CPF","char(11)"],["ADQ4_PART","float"],["TIPOFIN","smallint"],["PART_CEF","float"],["ORI_REC_TIPO","smallint"],["CODCAUCAO","char(12)"],["CODIGO_IM","smallint"],["CODMUN_BNH","int"],["CATEGORIA","smallint"],["MODALIDADE","smallint"],["CH_CODIGO","int"],["CH_TIPO","char(3)"],["CH_NUMERO","int"],["CH_SERIE","char(3)"],["CH_REGISTRO","int"],["CH_INSCRICAO","int"],["CH_COMARCA","char(15)"],["CH_CART","char(15)"],["CH_DATA","char(8)"],["CH_LIVRO","char(8)"],["CH_FOLHA","char(6)"],["GRAU_HIPO","smallint"],["IMFIN_QUADRA","char(5)"],["IMFIN_LOTE","char(5)"],["IMFIN_BLOCO","char(5)"],["IMFIN_APTO","char(9)"],["IMFIN_DV","smallint"],["IMFIN_PADRAO","smallint"],["DATA_ASS","char(8)"],["DATACONTR","char(8)"],["VAL_IMOVEL","float"],["VAL_AVAL","float"],["DATA_AVAL","char(8)"],["PREST_PAGAS","smallint"],["VAL_FIN","float"],["VAL_FIN_CONT","float"],["PLANO_FIN","smallint"],["PRAZO_FIN","smallint"],["FAIXA_FIN","smallint"],["TAXA_JUR","float"],["CES","float"],["FATOR_Q","float"],["RED_GRAD","float"],["CAR_PRAZO","smallint"],["CAR_TIPO","smallint"],["ORIG_FIN","smallint"],["ORI_LIN_CRED","smallint"],["DTA_PRI_PRES","char(8)"],["DTA_PRI_REAJ","char(8)"],["CODIGO_SEG","smallint"],["PLANO_SEG","smallint"],["NUMERO_FIF","char(13)"],["ORI_SEG_MIP","smallint"],["ORI_SEG_CRED","smallint"],["ORI_SEG_DFI","smallint"],["DTA_INI_SEG","char(8)"],["DTA_TAXAS","char(8)"],["TXI_ABR_CRED","float"],["TXI_SEG_AVI","float"],["TXI_FUNDAB","float"],["TXI_FCVS_AVI","float"],["TXI_OUTRAS","float"],["TXA1_COB_COD","smallint"],["TXA1_COB_ARG","float"],["TXA2_COB_COD","smallint"],["TXA2_COB_ARG","float"],["TXA3_COB_COD","smallint"],["TXA3_COB_ARG","float"],["CES_COD_CP","int"],["CES_MES_DISS","smallint"],["CES_TIP_REAJ","smallint"],["ORI_COB_FCVS","smallint"],["JP_DT_INIC","char(6)"],["JP_PERC","float"],["JP_FREQ","smallint"],["JP_TX_FINAL","float"],["TAXA_MORA","float"],["TP_CALC_MORA","char(2)"],["TAXA_MULTA","float"],["LCOB_TIPO","smallint"],["LCOB_END","char(1)"],["LCOB_BANCO","smallint"],["LCOB_AGENCIA","int"],["LCOB_CONTA","char(10)"],["CONS_ORGAO","char(3)"],["CONS_MUNIC","char(3)"],["CONS_SETOR","char(6)"],["CONS_MATR","char(7)"],["RCON_COMARCA","varchar(50)"],["RCON_CART","char(15)"],["RCON_DATA","char(8)"],["RCON_LIVRO","char(8)"],["RCON_FOLHA","char(6)"],["LIG_CON_IDEN","char(20)"],["LIG_CON_DATA","char(8)"],["LIG_CON_CODM","smallint"],["LPX_CON_IDEN","char(20)"],["LPX_CON_DATA","char(8)"],["LPX_CON_CODM","smallint"],["TIPO_CALCULO","char(1)"],["ENC_MEN_DTI","char(8)"],["ENC_MEN_SDI","float"],["ENC_MEN_AJ","float"],["ENC_MEN_JUR","float"],["ENC_MEN_MIP","float"],["ENC_MEN_CRED","float"],["ENC_MEN_DFI","float"],["ENC_MEN_TXA1","float"],["ENC_MEN_TXA2","float"],["ENC_MEN_TXA3","float"],["ENC_MEN_RAZ","float"],["ENC_MEN_FCVS","float"],["DATA_LIB_HIP","char(8)"],["DATU_DTA_LEG","char(8)"],["DATU_DTA_BAS","char(8)"],["DATU_PRO_VEN","char(8)"],["DATU_PRT_EMI","smallint"],["DATU_PRT_PAG","smallint"],["DATU_PLANO","smallint"],["DATU_PRAZO","smallint"],["DATU_TX_JUR","float"],["DATU_CES","float"],["DATU_FATORQ","float"],["DATU_RED_GRA","float"],["DATU_CAR_PRZ","smallint"],["DATU_CAR_TIP","smallint"],["LIN_CRED","smallint"],["DATU_SAL_DEV","float"],["DATU_VL_MERC","float"],["DATU_VL_AVAL","float"],["DATU_AJ","float"],["DATU_JUROS","float"],["DATU_COD_SEG","smallint"],["DATU_PLA_SEG","smallint"],["FLG_SEG_MIP","smallint"],["FLG_SEG_CRED","smallint"],["FLG_SEG_DFI","smallint"],["DATU_SG_MIP","float"],["DATU_SG_CRED","float"],["DATU_SG_DFI","float"],["DATU_COD_TX1","smallint"],["DATU_TAXA1","float"],["DATU_COD_TX2","smallint"],["DATU_TAXA2","float"],["DATU_COD_TX3","smallint"],["DATU_TAXA3","float"],["DATU_VL_FCVS","float"],["DATU_RAZAO","float"],["DATU_VL_EXT","float"],["DATU_VL_MORA","float"],["DATU_VL_SUBS","float"],["DATU_VL_OUTR","float"],["DATU_VL_FGTS","float"],["DATU_COD_CP","int"],["DATU_MES_DIS","smallint"],["DATU_TIP_REA","smallint"],["DATU_JP_INIC","char(6)"],["DATU_JP_PERC","float"],["DATU_JP_FREQ","smallint"],["DATU_JP_TXFI","float"],["DATU_TX_MORA","float"],["DATU_TP_CALC","char(2)"],["DATU_TX_MULT","float"],["DATU_PERIOD","char(1)"],["DATU_CGC_CPF","char(14)"],["DATU_AD1_PAR","float"],["DATU_AD2_CPF","char(11)"],["DATU_AD2_PAR","float"],["DATU_AD3_CPF","char(11)"],["DATU_AD3_PAR","float"],["DATU_AD4_CPF","char(11)"],["DATU_AD4_PAR","float"],["CTR_COB_FCVS","smallint"],["CTR_MEN_FCVS","smallint"],["CTR_SIT_CONT","smallint"],["CTR_DTU_REAJ","char(8)"],["CTR_DTP_REAJ","char(8)"],["CTR_RET_REAJ","char(1)"],["CTR_REAJ_ANT","float"],["CTR_DTU_CORR","char(8)"],["CTR_DTP_CORR","char(8)"],["CTR_CORR_SAL","float"],["CTR_PRV_COR","float"],["CTR_PRV_JUR","float"],["CTR_PRV_TXA","float"],["CTR_DTA_FIM","char(8)"],["CTR_STC_COD1","char(3)"],["CTR_STC_DTA1","char(8)"],["CTR_STC_COD2","char(3)"],["CTR_STC_DTA2","char(8)"],["CTR_STC_COD3","char(3)"],["CTR_STC_DTA3","char(8)"],["CTR_STC_COD4","char(3)"],["CTR_STC_DTA4","char(8)"],["CTR_STC_COD5","char(3)"],["CTR_STC_DTA5","char(8)"],["CTR_DTL_RETR","char(8)"],["CTR_DTA_IMPL","char(8)"],["CTR_DTC_INI","char(8)"],["CTR_DTC_FIM","char(8)"],["CTR_ETP_SEG","smallint"],["CTR_FLG_LIM","smallint"],["CTR_FLG_2065","smallint"],["CTR_IND_2068","float"],["CTR_FLG_MCAT","smallint"],["CTR_FLG_ATIV","smallint"],["ACCSEQ","char(17)"],["SITUACOES","char(20)"],["CC_TIP_CORR","char(3)"],["CC_TX_JUROS","float"],["CC_TX_MORA","float"],["CC_TX_MULTA","float"],["CC_LIM_CRED","float"],["CC_LIM_DEB","float"],["CC_FLG_BLOQ","char(1)"],["CC_DTA_BLOQ","char(8)"],["CC_QTD_PAR","smallint"],["CC_VLR_PAR","float"],["CCA_TIP_CORR","char(3)"],["CCA_TX_JUROS","float"],["CCA_TX_MORA","float"],["CCA_TX_MULTA","float"],["CCA_LIM_CRED","float"],["CCA_LIM_DEB","float"],["CCA_FLG_BLOQ","char(1)"],["CCA_DTA_BLOQ","char(8)"],["CCA_QTD_PAR","smallint"],["CCA_VLR_PAR","float"],["CC_QTD_EMI","smallint"],["CC_DTA_LCT","char(8)"],["CC_VLR_LCT","float"],["CC_DTA_SALDO","char(8)"],["CC_SALDO","float"],["PSW_ADQ","char(8)"],["CTR_FLG_BLOQ","char(1)"],["CTR_FLG_RES1","char(1)"],["CTR_FLG_RES2","char(1)"],["CTR_FLG_RES3","char(1)"],["CTR_FLG_RES4","char(1)"],["CTR_FLG_RES5","char(1)"],["CTR_FLG_RES6","smallint"],["CTR_FLG_RES7","smallint"],["CTR_FLG_RES8","smallint"],["CTR_FLG_RES9","smallint"],["CTR_FLG_RE10","smallint"],["CTR_COD_USR","char(8)"],["DATA_INC","char(8)"],["HORA_INC","char(8)"],["USR_ALT","char(8)"],["DATA_ALT","char(8)"],["HORA_ALT","char(8)"],["CPF_GAVETA","char(11)"],["FLG_TIP_GAV","smallint"],["DIA_VENC","char(2)"],["DATU_DIA_VEN","char(2)"],["PRAZ_PROR","smallint"],["DATU_PZ_PROR","smallint"],["ORI_REP_PRO","smallint"],["DATU_REP_PRO","smallint"],["CTR_DTU_JPRO","char(8)"],["CTR_DTU_CPRO","char(8)"],["CTR_FX_CBP","smallint"],["LCOB_TIPO_CC","int"],["COD_SEGUR","char(20)"],["CAMPO_EXTRA","char(20)"],["VAL_AQUIS","float"],["VAL_CONTABIL","float"],["VAL_AVAL_CEF","float"],["POUP_ESPECIE","float"],["POUP_FGTS","float"],["POUP_OUTROS","float"],["POUP_TOTAL","float"],["VAL_CMP_VEND","float"],["PC_CUST_VEND","float"],["PC_PART_FMH","float"],["APU_FINANC","float"],["APU_TX_JUR","float"],["APU_AMJ","float"],["APU_JUROS","float"],["DATU_APTXJUR","float"],["DATU_APU_AMJ","float"],["DATU_APU_JUR","float"],["CTR_FLGRES11","char(10)"],["CTR_FLGRES12","char(10)"],["CTR_FLGRES13","int"],["CTR_FLGRES14","int"],["CTR_FLGRES15","float"],["CTR_FLGRES16","float"],["DATU_APU_SLD","float"],["PROG_HABIT","smallint"],["SUBSID_TX_ADM","float"],["SUBSID_DIF_JUR","float"],["TX_JUR_PG_MUT","float"],["TX_JUR_PG_CEF","float"],["ORI_TX_RISCO","float"],["DATU_TX_RISCO","float"],["ORI_TX_ADM","float"],["DATU_TX_ADM","float"],["NUM_FIF_FORA_SFH","char(40)"],["ALIQ_IOF","float"],["ALIQ_ADIC_IOF","float"],["VAL_IOF","float"],["TIPO_DESC","smallint"],["VAR_DESC","float"],["DATU_TP_DESC","smallint"],["DATU_VL_DESC","float"],["IMOVEL_UNICO","int"],["VALOR_ITBI","float"],["VALOR_CUSTAS_CARTORARIAS","float"],["RCON_NUMERO","varchar(10)"],["RCON_MATRIC","varchar(15)"],["VALOR_IQ","float"],["SUBSIDIO","float"],["SUBSIDIO_COND","float"],["CANCELAMENTO","float"],["DESC_AGENTE","float"],["DATU_DTA_AVAL","char(8)"],["TXA4_COB_COD","smallint"],["TXA4_COB_ARG","float"],["DATU_COD_TX4","smallint"],["DATU_TAXA4","float"]]},"MTTBSE1":{"d":"Tabela de Ficha Socio Economica","n":105,"c":[["CODEMP","smallint"],["CGCCPF","char(14)"],["FISJUR","smallint"],["NOMTIT","varchar(60)"],["END_TITC","char(45)"],["CPL_ENDC","char(15)"],["BAIRROC","char(15)"],["CIDADEC","char(15)"],["ESTADOC","char(2)"],["COD_CEPC","int"],["CPL_CEPC","smallint"],["CXA_POSC","int"],["DDD_TELC","int"],["NUM_TELC","int"],["RAM_TELC","int"],["DDD_FAXC","int"],["NUM_FAXC","int"],["CODNAC","smallint"],["CODNAT","char(15)"],["CODSEX","smallint"],["ESTCIV","smallint"],["REGCAS","smallint"],["DTANAS","char(8)"],["ATVPRO","smallint"],["NUMIDT","char(14)"],["ORGIDT","char(6)"],["ESTIDT","char(2)"],["FXA_REND","smallint"],["CNJNOM","char(60)"],["CNJCPF","char(11)"],["CODUSR","char(8)"],["DTAIMP","char(8)"],["DTAMOV","char(8)"],["EMISS_CONJUG","smallint"],["CODAGENTE","char(10)"],["EMAIL","char(60)"],["PIS","char(11)"],["PIS_CONJ","char(11)"],["CONS_ORGAO","char(3)"],["CONS_MUNIC","char(3)"],["CONS_SETOR","char(6)"],["CONS_MATR","char(20)"],["LCOB_BANCO","smallint"],["LCOB_AGENCIA","smallint"],["LCOB_CONTA","char(10)"],["LCOB_TIPO_CC","smallint"],["RENDA","float"],["DTA_RENDA","char(8)"],["TIPO_RENDA","smallint"],["OUT_RENDA1","float"],["DTA_RENDA1","char(8)"],["DESCR_RENDA1","char(30)"],["TIPO_RENDA1","smallint"],["OUT_RENDA2","float"],["DTA_RENDA2","char(8)"],["DESCR_RENDA2","char(30)"],["TIPO_RENDA2","smallint"],["TEMPO_FGTS","smallint"],["DT_TEMPO_FGTS","char(8)"],["VALID_TEMPO_FGTS","smallint"],["DT_CASAMENTO","char(8)"],["CONJTIT_CODNAC","smallint"],["CONJTIT_NUMIDT","char(14)"],["CONJTIT_ORGIDT","char(6)"],["CONJTIT_ESTIDT","char(2)"],["CONJTIT_ATVPRO","smallint"],["CONJ_RENDA","float"],["CONJ_DTA_RENDA","char(8)"],["CONJ_TIPO_RENDA","smallint"],["CONJ_OUT_RENDA1","float"],["CONJ_DTA_RENDA1","char(8)"],["CONJ_DESCR_RENDA1","char(30)"],["CONJ_TIPO_RENDA1","smallint"],["CONJ_OUT_RENDA2","float"],["CONJ_DTA_RENDA2","char(8)"],["CONJ_DESCR_RENDA2","char(30)"],["CONJ_TIPO_RENDA2","smallint"],["RNE","char(25)"],["RNE_CONJ","char(25)"],["NATURAL_CONJ","char(15)"],["DATA_EMI_IDT","char(8)"],["POLIT_EXPO","smallint"],["NOME_MAE","char(60)"],["NOME_PAI","char(60)"],["VAL_PATRI","float"],["DATA_VAL_PATRI","char(8)"],["NOM_REP_LEGAL2","char(60)"],["CPF_REP_LEGAL2","char(11)"],["NOM_REP_LEGAL3","char(60)"],["CPF_REP_LEGAL3","char(11)"],["DDD_CELULAR","int"],["NUM_CELULAR","int"],["AUTORIZANOMESOCIAL","int"],["NOME_SOCIAL","char(60)"],["DATA_AUTORIZA","char(8)"],["NOME_ORIGINAL","char(60)"],["FLG_DEFIC","smallint"],["OBS_DEFIC","varchar(200)"],["CODPCD","varchar(30)"],["CODCID","varchar(100)"],["VULNERABILIDADE","varchar(30)"],["FALECIDO","smallint"],["DATA_MORTE","varchar(8)"],["FLG_IDT","smallint"],["FLG_IDT_CNJ","smallint"]]},"MTTBNUC":{"d":"Tabela de Núcleos Habitacionais","n":34,"c":[["CodEmp","smallint"],["Regiao","smallint"],["Codigo","smallint"],["Nucleo","char(45)"],["Qtd_Imovel","int"],["COD_BANCO","smallint"],["BANCO_CC","varchar(25)"],["AGENCIA_CC","int"],["TIPO_CC","int"],["NUMERO_CC","int"],["FIS_JUR","smallint"],["CGC_CPF","varchar(14)"],["REGIONAL","int"],["VAL_MERC_IMO","float"],["ENDER_NUC","char(50)"],["COMPL_NUC","char(50)"],["NUMERO_NUC","char(4)"],["BAIRRO_NUC","char(50)"],["MUNIC_NUC","char(50)"],["UF_NUC","char(2)"],["CEP_NUC","char(8)"],["LATIT_NUC","char(255)"],["LONGIT_NUC","char(255)"],["DESCR_NUC","char(255)"],["DESCR_NUC2","char(255)"],["DESCR_NUC3","char(255)"],["DESCR_NUC4","char(255)"],["DESCR_NUC5","char(255)"],["DESCR_NUC6","char(255)"],["PERC_FMH","float"],["LIN_CRED","smallint"],["PERC_CST_CHB","float"],["PERC_CST_FMH","float"],["REG_CUMULAT","char(1)"]]},"MTTBSCT":{"d":"Tabela de Situações do Contrato","n":12,"c":[["CodEmp","smallint"],["Codigo","int"],["Descricao","char(50)"],["FlgExCob","smallint"],["TIPOTAB","int"],["FlgExcCar","smallint"],["FlgExcSpc","smallint"],["Classe","char(27)"],["DATALIM","char(8)"],["DESCRICAOSIT","char(1000)"],["FLGDESC","smallint"],["FlgExcEscritura","smallint"]]},"MTTBMUN":{"d":"Tabela de Códigos dos Municipios (BNH)","n":5,"c":[["COD_IBGE","int"],["COD_BNH","int"],["Municipio","char(25)"],["Estado","char(2)"],["MUN_EMP","smallint"]]},"MTTBCTF":{"d":"Tabela de Categorias de Financiamento","n":4,"c":[["CODEMP","smallint"],["CODCTF","smallint"],["DESCRICAO","char(30)"],["QTDREF","int"]]},"MTTBMOD":{"d":"Tabela de Modalidades de Financiamento","n":4,"c":[["CODEMP","smallint"],["CODMOD","smallint"],["DESCRICAO","char(30)"],["QTDREF","int"]]},"MTTBPPF":{"d":"Tabela de Parâmetros dos Planos de Financiamento","n":26,"c":[["CODEMP","smallint"],["CODIGO_PLANO","smallint"],["PVP_DTA_INIC","char(8)"],["PVP_DTA_FIN","char(8)"],["SIGLA","char(20)"],["DESCRICAO","char(30)"],["TIPO_OPER","char(1)"],["SIST_AMORTIZ","char(1)"],["USO_DO_CES","char(1)"],["SREAJ_PERIOD","char(1)"],["SREAJ_MOEDA","char(3)"],["SCSD_PERIOD","char(1)"],["SCSD_MOEDA","char(3)"],["VENC_PREST","smallint"],["VMPRES_MOEDA","char(3)"],["VMPRES_QTDE","float"],["CAR_TIPO","char(1)"],["CAR_NUM_MES","smallint"],["FLG_REPACTUA","char(1)"],["FLG_REV_REAJ","char(1)"],["FLG_LIM_1331","smallint"],["QTD_CON","int"],["CODINDREAJ","char(5)"],["CODCORSAL","char(5)"],["DEF_REAJ","smallint"],["DEF_CORR","smallint"]]},"MTTBPSE":{"d":"Tabela de Planos de Seguros","n":58,"c":[["CODEMP","smallint"],["CODSEG","smallint"],["PLANO_SEG","smallint"],["DESCRICAO","char(30)"],["TIPO_SEG","char(1)"],["MIP_FXA1","smallint"],["MIP_IND1","float"],["MIP_FXA2","smallint"],["MIP_IND2","float"],["MIP_FXA3","smallint"],["MIP_IND3","float"],["MIP_FXA4","smallint"],["MIP_IND4","float"],["MIP_FXA5","smallint"],["MIP_IND5","float"],["MIP_FXA6","smallint"],["MIP_IND6","float"],["DFI_IND","float"],["FLG_DFI_VAL","char(1)"],["DTA_LIM_AVAL","char(8)"],["VAL_LIM_AVAL","float"],["QTD_SEG","int"],["MIP_FXA0","int"],["MIP_FXA7","smallint"],["MIP_IND7","float"],["MIP_FXA8","smallint"],["MIP_IND8","float"],["MIP_FXA9","smallint"],["MIP_IND9","float"],["MIP_FXA10","smallint"],["MIP_IND10","float"],["MIP_FXA11","smallint"],["MIP_IND11","float"],["MIP_FXA12","smallint"],["MIP_IND12","float"],["MIP_FXA13","smallint"],["MIP_IND13","float"],["MIP_FXA14","smallint"],["MIP_IND14","float"],["MIP_FXA15","smallint"],["MIP_IND15","float"],["MIP_FXA16","smallint"],["MIP_IND16","float"],["MIP_FXA17","smallint"],["MIP_IND17","float"],["MIP_FXA18","smallint"],["MIP_IND18","float"],["MIP_FXA19","smallint"],["MIP_IND19","float"],["MIP_FXA20","smallint"],["MIP_IND20","float"],["IOF_MIP","float"],["IOF_DFI","float"],["DTA_APOLICE","char(8)"],["TP_RECALC_FX","smallint"],["DT_RECALC_FX","char(8)"],["MIP_PerRecalc","smallint"],["DFI_PerRecalc","smallint"]]},"MTTBPRO":{"d":"Tabela de Profissões","n":2,"c":[["COD_PROF","smallint"],["TITULO_PROF","char(200)"]]},"MTTBEMP":{"d":"Cadastro de Empresas","n":102,"c":[["CODEMP","smallint"],["TIPOEMP","char(1)"],["SIGLA","char(4)"],["CGCCPF","char(14)"],["RAZSOCIAL","char(40)"],["NOME_COMPAC","char(15)"],["ENDEMP","char(30)"],["ENDCOM","char(15)"],["BAIRRO","char(15)"],["CIDADE","char(15)"],["ESTADO","char(2)"],["CODCEP","int"],["SUFCEP","smallint"],["CXAPST","int"],["DDDTEL","int"],["NUMTEL","int"],["RAMTEL","int"],["DDDFAX","int"],["NUMFAX","int"],["BNH_COD_AGEN","smallint"],["BNH_UFS_AGEN","smallint"],["BNH_MAT_AGEN","int"],["SEG_REGIAO","smallint"],["SEG_MATRIC","int"],["SEG_AGENCIA","smallint"],["DTA_BASE_PRO","char(8)"],["DTA_EVOLUCAO","char(8)"],["DTA_MORA","char(8)"],["DTA_CONTABIL","char(8)"],["DTA_FECH_CTB","char(8)"],["LIM_CRED_CC","float"],["LIM_DEB_CC","float"],["LIM_DESC_ATU","float"],["LIM_DESC_MOR","float"],["LIM_TC_ATRAS","smallint"],["LIM_TC_RENDA","smallint"],["LIM_TC_CL","smallint"],["LIM_TC_CL_EX","smallint"],["LIM_TC_PREJU","smallint"],["FLG_COR01","char(3)"],["FLG_REA01","char(3)"],["FLG_VOUCHER","char(1)"],["TP_CARNE","smallint"],["DIG_EMP","smallint"],["BANCO_ATUAL","smallint"],["EMPLIG01","smallint"],["EMPLIG02","smallint"],["DTA_NOVACAO","char(8)"],["DTA_SERASA","char(8)"],["CEF_CRED","smallint"],["CEF_COD_AGEN","smallint"],["CEF_COD_ARR","smallint"],["CEF_CGC_ADM","char(14)"],["CEF_EMP_ADM","char(40)"],["CEF_DTA_TRA","char(8)"],["FLG_RES1","float"],["FLG_RES2","smallint"],["FLG_RES3","smallint"],["FLG_RES4","char(2)"],["FLG_RES5","char(2)"],["FLG_RES6","char(2)"],["DTA_AT_ARREC","char(8)"],["SEQ_LOTE","int"],["DTA_CONV","char(6)"],["WS_URL","char(100)"],["BANCO_FGTS","char(3)"],["AGENCIA_FGTS","char(5)"],["CONTA_FGTS","char(10)"],["STR_FGTS","char(1)"],["FLG_TPCHAVE","char(1)"],["DTA_AUX","char(8)"],["SEQ_DBCTA_AM","int"],["SEQ_DBCTA","int"],["DTA_EVOL_FCF","char(8)"],["WS_URL_ADAPT","char(100)"],["PATH_READ","char(250)"],["PATH_WRITE","char(250)"],["SEQ_CARTA1","int"],["SEQ_CARTA2","int"],["SEQ_CARTA3","int"],["DTA_EVOL_HAB","char(8)"],["DTA_CTB_PROX","char(8)"],["CTR_MODO_CTB","int"],["FLG_SARBOX","int"],["FLG_RELVBA","int"],["EMPLIGCER","int"],["EMPLIGSIM","int"],["EMPLIGBAK","int"],["VALI_SENH","smallint"],["PastaBackup","varchar(100)"],["ExtensBackup","varchar(4)"],["DtAutACC","varchar(8)"],["DTA_TX_MEDIA","char(8)"],["TIPOSGH","smallint"],["COD_UNI_CLI","int"],["CTR_IFRS","smallint"],["WS_URL_REL","char(100)"],["FLG_INS_IND","smallint"],["FLG_PSE","smallint"],["PLANO_NOVACAO","smallint"],["DTA_FECH_REF","char(8)"],["FLG_NOVO_FCVS","smallint"]]},"MTTBSEG":{"d":"Tabela de Segurança (Usuários)","n":12,"c":[["CodEmp","smallint"],["CodUsr","char(8)"],["ClasUsr","char(3)"],["NomUsr","char(35)"],["PswUsr","char(8)"],["FuncUsr","char(15)"],["DtValidade","char(8)"],["codtrz","smallint"],["DtValidSenha","char(8)"],["Impr_Padrao","char(500)"],["CPF","varchar(14)"],["EMAIL","varchar(60)"]]},"MTTBLURA":{"d":"","n":6,"c":[["codigo","int"],["fk_codemp_seg","smallint"],["fk_codusr_seg","char(8)"],["fk_codigo_ass","int"],["validade","datetime2"],["AUTORIZACAO","int"]]},"MTTBCASS":{"d":"","n":7,"c":[["codigo","int"],["identificador","varchar(500)"],["email","varchar(500)"],["emissor","varchar(500)"],["link_emissor","varchar(1000)"],["inicio_validade","datetime2"],["termino_validade","datetime2"]]},"MTTBPEMP":{"d":"","n":3,"c":[["fk_codemp_emp","smallint"],["parametro","varchar(500)"],["valor","varchar(1500)"]]},"MTTBHIS":{"d":"Tabela de Históricos das Renegociações","n":101,"c":[["CODEMP","smallint"],["REGIAO","smallint"],["NUCLEO","smallint"],["CONTRATO","char(10)"],["DTA_PALT","char(6)"],["SEQ","char(2)"],["DTA_ALT","char(8)"],["COD_HIST","smallint"],["VL_RENEG","float"],["VL_FGTS","float"],["VL_CC","float"],["AD1_CGCCPF","char(14)"],["AD1_PART","float"],["AD2_CPF","char(11)"],["AD2_PART","float"],["AD3_CPF","char(11)"],["AD3_PART","float"],["AD4_CPF","char(11)"],["AD4_PART","float"],["PCP_CDCP","int"],["PCP_MDIS","smallint"],["PCP_TPRJ","smallint"],["DT_REAJ","char(8)"],["SIN_PERC_RJ","char(1)"],["PERC_RJ","float"],["VL_PREST","float"],["PLAN_FIN","smallint"],["PRAZ_TOT","smallint"],["TAXA_JUR","float"],["CES","float"],["FATOR_Q","float"],["RED_GRAD","float"],["CAR_PRAZO","smallint"],["CAR_TIPO","smallint"],["TX_COD1","smallint"],["TX_ARG1","float"],["TX_COD2","smallint"],["TX_ARG2","float"],["TX_COD3","smallint"],["TX_ARG3","float"],["COD_CTB","smallint"],["DIA_VENC","smallint"],["CODIGO_SEG","smallint"],["PLANO_SEG","smallint"],["FLG_SEG_MIP","smallint"],["FLG_SEG_CRED","smallint"],["FLG_SEG_DFI","smallint"],["JP_DT_INIC","char(6)"],["JP_PERC","float"],["JP_FREQ","smallint"],["JP_TX_FINAL","float"],["TAXA_MORA","float"],["TP_CALC_MORA","char(2)"],["TAXA_MULTA","float"],["FLG_CON_ESP","char(1)"],["SEQ_REC","int"],["PRIN_MOT","smallint"],["TP_SUBRO","smallint"],["DATA_CONTAB","char(8)"],["USR_INC","char(8)"],["DATA_INC","char(8)"],["HORA_INC","char(8)"],["USR_ALT","char(8)"],["DATA_ALT","char(8)"],["HORA_ALT","char(8)"],["DTA_CTB_ALT","char(8)"],["VL_DEP_JUD","float"],["QTD_PARC","smallint"],["REN_VAL_AMOR","float"],["SALDO_TEOR","float"],["PRO_VAL_CMON","float"],["PRO_IND_CMON","float"],["COR_IND_BASE","float"],["DD_PRO_CMON","int"],["CTR_DTU_CORR","char(8)"],["PRO_VAL_JUR","float"],["PRO_IND_JUR","float"],["DD_PRO_JUR","int"],["DES_VAL_FCVS","float"],["DES_VAL_AGEN","float"],["PE_LIGCRONO","char(5)"],["VL_TXA_REN","float"],["VL_MON_REN","float"],["VL_JTP_REN","float"],["VL_TX2_REN","float"],["VL_TX3_REN","float"],["VL_TIPTX_REN","char(3)"],["VL_IOF_REN","float"],["FLG_RES1","char(1)"],["FLG_RES2","char(1)"],["FLG_RES3","char(1)"],["FLG_RES4","float"],["FLG_RES5","float"],["FLG_RES6","float"],["DTA_PG_SEG","char(8)"],["PRAZ_PROR","smallint"],["ORI_REP_PRO","smallint"],["VL_MON_ATU","float"],["VL_JTP_ATU","float"],["TX_COD4","smallint"],["TX_ARG4","float"]]},"MTTBEVM":{"d":"Tabela de Eventos Mensais","n":73,"c":[["CODEMP","smallint"],["REGIAO","smallint"],["NUCLEO","smallint"],["CONTRATO","char(10)"],["DATA_EVM","char(6)"],["PRT_DIA_VENC","char(2)"],["PRT_NUM_PRES","smallint"],["PRT_VAL_AMJ","float"],["PRT_VAL_RAZ","float"],["PRT_VAL_JUR","float"],["TXA_VAL_TXA1","float"],["TXA_VAL_TXA2","float"],["TXA_VAL_TXA3","float"],["TXA_VAL_FCVS","float"],["EXT_VAL_CC","float"],["EXT_VAL_MORA","float"],["EXT_VAL_SUBS","float"],["EXT_VAL_OUTR","float"],["EXT_VAL_IOF","float"],["FGT_COT_FGTS","smallint"],["FGT_VAL_FGTS","float"],["SEG_MIP","float"],["SEG_CRED","float"],["SEG_DFI","float"],["SALDO_TEOR","float"],["COR_VAL_GAR","float"],["COR_VAL_CMON","float"],["COR_IND_CMON","float"],["COR_DIA_CMON","smallint"],["PR_JR_97222","float"],["CM_VL_97222","float"],["SALDO_97222","float"],["PRT_JUR_NOV","float"],["COR_VAL_NOV","float"],["SALDO_NOV","float"],["PRT_JUR_JNP","float"],["COR_VAL_JNP","float"],["SALDO_JNP","float"],["PRT_JUR_OUT","float"],["COR_VAL_OUT","float"],["SALDO_OUT","float"],["SALDO_MONT","float"],["REA_TIPOREAJ","smallint"],["REA_MOT_REAJ","smallint"],["REA_IND_REAJ","float"],["REA_DIA_REAJ","smallint"],["FLG_RENEG","smallint"],["CTB_SIT_CONT","smallint"],["CTB_REN_CMON","smallint"],["CTB_REN_PRES","smallint"],["CTB_SIT_PRES","smallint"],["PAG_SIT_PGTO","smallint"],["PAG_BCO_AGE","char(8)"],["PAG_DTA_PGTO","char(8)"],["PAG_DTA_ESTR","char(8)"],["PAG_DTA_PROR","char(8)"],["PAG_COD_BAIX","smallint"],["PAG_VAL_PGTO","float"],["PAG_DIF_PGTO","float"],["PAG_ATU_MON","float"],["PAG_JUR_REM","float"],["PAG_MORA_DEV","float"],["PAG_MULTA","float"],["PAG_OUTROS","float"],["PAG_DTA_MORA","char(8)"],["PAG_SEQ_REC","int"],["VAL_RES1","float"],["VAL_RES2","float"],["VAL_RES3","float"],["FLG_RES1","int"],["FLG_RES2","int"],["FLG_RES3","int"],["EXT_ValCCSem","float"]]},"MTTBREC":{"d":"Tabela de Recibos Emitidos","n":39,"c":[["SEQUENCIAL","char(8)"],["NUM_PRT","char(3)"],["CODEMP","smallint"],["REGIAO","smallint"],["NUCLEO","smallint"],["CONTRATO","char(10)"],["DATA_EMIS","char(8)"],["DATA_VENC","char(8)"],["DATA_PRORROG","char(8)"],["VLR_ATUAL","float"],["VLR_MORA","float"],["VLR_JUR_REM","float"],["VLR_MULTA","float"],["VLR_TARIFA","float"],["VLR_TOTAL","float"],["TIPO_EMISS","char(1)"],["TIPO_ARREC","char(1)"],["FLG_COB_TERC","smallint"],["FLG_TP_MORA","smallint"],["FLG_REC_PAGO","smallint"],["COD_RENG","int"],["COD_DAMP","int"],["CGC_CPF","char(14)"],["DESC_MOR_ANT","float"],["DESC_MORA","float"],["DESC_ATU_MON","float"],["DESC_JUR_REM","float"],["DESC_MULTA","float"],["DESC_QUIT","float"],["DESC_PONTUAL","float"],["VLR_REC_FGTS","float"],["VLR_REC_OUTR","float"],["VLR_RES1","float"],["VLR_RES2","float"],["VLR_RES3","float"],["FLG_RES1","int"],["FLG_RES2","int"],["FLG_RES3","int"],["TIPO_IMPRESSAO","smallint"]]},"MTTBADQ":{"d":"Tabela de Adquirentes","n":10,"c":[["Codemp","smallint"],["CgcCpf","char(14)"],["Regiao","smallint"],["Nucleo","smallint"],["Contrato","char(10)"],["Flag_EndCob","char(1)"],["Flag_Adq","char(1)"],["Data_Ocor","char(8)"],["PercPart","float"],["Flag_Ori_Adq","char(1)"]]},"MTTBCOP":{"d":"Processo do Contrato","n":18,"c":[["CODEMP","smallint"],["REGIAO","smallint"],["NUCLEO","smallint"],["CONTRATO","char(10)"],["NUM_IMOVEL","int"],["ORG_PROCESSO","smallint"],["NUM_PROCESSO","int"],["ANO_PROCESSO","smallint"],["NUM_EDITAL","int"],["ANO_EDITAL","smallint"],["DTA_EDITAL","char(8)"],["HAB_DTA_LIM","char(8)"],["HAB_DTA_ENT","char(8)"],["HAB_PMULTA","float"],["COD_DEST","int"],["SETOR_IMOVEL","int"],["VAL_INCORP","float"],["CONTR_BASE","char(10)"]]},"MTTBCOF":{"d":"Tabela de Valores do Financiamento do Contrato (Contratação)","n":38,"c":[["SEQUENCIAL","int"],["CODEMP","smallint"],["REGIAO","smallint"],["NUCLEO","smallint"],["CONTRATO","char(10)"],["DTA_AQUIS","char(8)"],["VAL_AQUIS","float"],["DTA_CONTABIL","char(8)"],["VAL_CONTABIL","float"],["DTA_AVAL","char(8)"],["VAL_AVAL","float"],["DTA_AVAL_CEF","char(8)"],["VAL_AVAL_CEF","float"],["DTA_MERCADO","char(8)"],["VAL_MERCADO","float"],["DTA_CMP_VEND","char(8)"],["VAL_CMP_VEND","float"],["VAL_FINANC","float"],["POUP_ESPECIE","float"],["POUP_FGTS","float"],["POUP_OUTROS","float"],["POUP_TOTAL","float"],["SLD_SUBR_TRF","float"],["VAL_CONT_PAR","float"],["VAL_SUBS","float"],["VAL_FIN_PSH","float"],["VAL_TAX_TIE","float"],["VAL_FUNDHAB","float"],["VAL_TAX_CAC","float"],["VAL_SEG_INI","float"],["VAL_TAX_FCVS","float"],["VAL_TAX_OUT","float"],["TIPO_DESC","smallint"],["VAR_DESC","float"],["VAL_DESC_VIS","float"],["VAL_SUBS_ADI_CON","float"],["VAL_JUR_REM_FIN","float"],["VAL_JUR_REM_ADI","float"]]},"MTTBBXA":{"d":"Tabela de Baixas","n":14,"c":[["CODEMP","smallint"],["COD_BCO","char(3)"],["COD_AGE","char(5)"],["DTA_BXA","char(8)"],["LOTE","smallint"],["SEQ","smallint"],["REGIAO","smallint"],["NUCLEO","smallint"],["CONTRATO","char(10)"],["PAG_COD_BAIX","smallint"],["PRT_NUM_PRES","smallint"],["PRT_VAL_PGTO","float"],["PGT_DIF_PGTO","float"],["FLG_ATZ","smallint"]]},"MTTBARR":{"d":"Tabela de Movimento de Arrecadação","n":79,"c":[["CODEMP","smallint"],["REGIAO","smallint"],["NUCLEO","smallint"],["CONTRATO","char(10)"],["TIPO_ARREC","smallint"],["COD_ARREC","char(1)"],["SEQ_LOTE","int"],["SEQ","smallint"],["PAG_COD_BCO","char(3)"],["PAG_COD_AGE","char(5)"],["PAG_DTA_REME","char(8)"],["PAG_DTA_PGTO","char(8)"],["PAG_SEQ_REC","char(8)"],["PAG_VL_PGTO","float"],["PAG_VL_MORA","float"],["EVM_NUM_PRES","smallint"],["EVM_DTA_VENC","char(8)"],["EVM_VL_AMORT","float"],["EVM_VL_JUROS","float"],["EVM_VL_TAXA","float"],["EVM_VL_SEG","float"],["EVM_VL_FCVS","float"],["EVM_VL_FGTS","float"],["EVM_VL_CC","float"],["EVM_VL_SUBS","float"],["EVM_VL_OUTR","float"],["EVM_VL_MORA","float"],["DESC_MOR_ANT","float"],["DESC_MORA","float"],["DESC_ATU_MON","float"],["CAL_VL_ENC","float"],["CAL_VL_MORA","float"],["CAL_DIF_ENC","float"],["CAL_DIF_MORA","float"],["CAL_MOR_DISP","float"],["VLR_REC_FGTS","float"],["VLR_REC_OUTR","float"],["DTA_MOVT_CTB","char(8)"],["TIPO_DIGT","smallint"],["TIPO_EMISS","char(1)"],["COD_DOC_RENG","int"],["SIT_ATUALIZ","char(4)"],["DTA_INCL","char(8)"],["HOR_INCL","char(8)"],["DTA_ULT_PROC","char(8)"],["HOR_ULT_PROC","char(8)"],["DTA_INCL_CTB","char(8)"],["BCO_PAGTO","char(4)"],["AGE_PAGTO","char(5)"],["CAIXA_PAGTO","smallint"],["HORA_PAGTO","char(8)"],["USU_INCL","char(8)"],["CAL_VL_ATMON","float"],["CAL_VL_JRREM","float"],["CAL_VL_MULTA","float"],["CAL_VL_IOF","float"],["DESC_ENCARGO","float"],["TP_DESC_ENC","smallint"],["VL_DES_ENC","float"],["VL_DES_MORAN","float"],["VL_DES_ATMON","float"],["VL_DES_MORA","float"],["VL_DES_JRREM","float"],["VAL_REC_CC","float"],["DTA_CAR_PAGT","char(8)"],["DTA_PAG_UTIL","char(8)"],["FLG_PG_EMDIA","smallint"],["LCT_COD_TRAN","char(5)"],["USU_ALTER","char(8)"],["ARQ_BANCO","char(50)"],["INT_RES01","smallint"],["INT_RES02","smallint"],["INT_RES03","smallint"],["DBL_RES01","float"],["DBL_RES02","float"],["DBL_RES03","float"],["STR_RES01","char(50)"],["STR_RES02","char(50)"],["STR_RES03","char(50)"]]},"MTTBCSG":{"d":"Tabela Consolidado Geral","n":314,"c":[["CODEMP","smallint"],["REGIAO","smallint"],["NUCLEO","smallint"],["CONTRATO","char(10)"],["FILIAL","smallint"],["DTA_CALC","char(8)"],["DTA_FECH_CTB","char(8)"],["DATA_GERACAO","char(8)"],["ADQ1_CPFCGC","char(14)"],["ADQ1_FISJUR","smallint"],["ADQ1_PART","float"],["ADQ1_NOME","char(35)"],["ADQ1_DT_NASC","char(8)"],["ADQ1_ID","char(18)"],["ADQ1_ORG_ID","char(3)"],["ADQ1_UF_ID","char(2)"],["ADQ1_CODNAC","smallint"],["ADQ1_ESTCIV","smallint"],["ADQ1_NOMECNJ","char(35)"],["ADQ1_DATCNJ","char(8)"],["ADQ2_CPF","char(11)"],["ADQ2_PART","float"],["ADQ2_NOME","char(35)"],["ADQ2_DT_NASC","char(8)"],["ADQ2_ID","char(18)"],["ADQ2_ORG_ID","char(3)"],["ADQ2_UF_ID","char(2)"],["ADQ2_CODNAC","smallint"],["ADQ2_ESTCIV","smallint"],["ADQ2_NOMECNJ","char(35)"],["ADQ2_DATCNJ","char(8)"],["ADQ3_CPF","char(11)"],["ADQ3_PART","float"],["ADQ3_NOME","char(35)"],["ADQ3_DT_NASC","char(8)"],["ADQ3_ID","char(18)"],["ADQ3_ORG_ID","char(3)"],["ADQ3_UF_ID","char(2)"],["ADQ3_CODNAC","smallint"],["ADQ3_ESTCIV","smallint"],["ADQ3_NOMECNJ","char(35)"],["ADQ3_DATCNJ","char(8)"],["ADQ4_CPF","char(11)"],["ADQ4_PART","float"],["ADQ4_NOME","char(35)"],["ADQ4_DT_NASC","char(8)"],["ADQ4_ID","char(18)"],["ADQ4_ORG_ID","char(3)"],["ADQ4_UF_ID","char(2)"],["ADQ4_CODNAC","smallint"],["ADQ4_ESTCIV","smallint"],["ADQ4_NOMECNJ","char(35)"],["ADQ4_DATCNJ","char(8)"],["ADQA1_CPFCGC","char(14)"],["ADQA1_FISJUR","smallint"],["ADQA1_PART","float"],["ADQA1_NOME","char(35)"],["ADQA1_DT_NAS","char(8)"],["ADQA1_ID","char(18)"],["ADQA1_ORG_ID","char(3)"],["ADQA1_UF_ID","char(2)"],["ADQA1_CODNAC","smallint"],["ADQA1_ESTCIV","smallint"],["ADQA1_NOMCNJ","char(35)"],["ADQA1_DATCNJ","char(8)"],["ADQA2_CPF","char(11)"],["ADQA2_PART","float"],["ADQA2_DT_NAS","char(8)"],["ADQA2_ID","char(18)"],["ADQA2_ORG_ID","char(3)"],["ADQA2_UF_ID","char(2)"],["ADQA2_CODNAC","smallint"],["ADQA2_ESTCIV","smallint"],["ADQA2_NOMCNJ","char(35)"],["ADQA2_DATCNJ","char(8)"],["ADQA2_NOME","char(35)"],["ADQA3_CPF","char(11)"],["ADQA3_PART","float"],["ADQA3_NOME","char(35)"],["ADQA3_DT_NAS","char(8)"],["ADQA3_ID","char(18)"],["ADQA3_ORG_ID","char(3)"],["ADQA3_UF_ID","char(2)"],["ADQA3_CODNAC","smallint"],["ADQA3_ESTCIV","smallint"],["ADQA3_NOMCNJ","char(35)"],["ADQA3_DATCNJ","char(8)"],["ADQA4_CPF","char(11)"],["ADQA4_PART","float"],["ADQA4_NOME","char(35)"],["ADQA4_DT_NAS","char(8)"],["ADQA4_ID","char(18)"],["ADQA4_ORG_ID","char(3)"],["ADQA4_UF_ID","char(2)"],["ADQA4_CODNAC","smallint"],["ADQA4_ESTCIV","smallint"],["ADQA4_NOMCNJ","char(35)"],["ADQA4_DATCNJ","char(8)"],["ENDC_END","char(45)"],["ENDC_COMPL","char(15)"],["ENDC_BAIRRO","char(15)"],["ENDC_CIDADE","char(15)"],["ENDC_ESTADO","char(2)"],["ENDC_CODCEP","int"],["ENDC_SUFCEP","smallint"],["ENDC_DDDFONE","smallint"],["ENDC_NUMFONE","int"],["ENDC_RAMFONE","int"],["ENDC_DDD_FAX","int"],["ENDC_NUM_FAX","int"],["ENDC_COB_BCO","smallint"],["DATACONTR","char(8)"],["PLANO","smallint"],["TIPO_REAJ","char(10)"],["PRAZO","smallint"],["MES_REAJ","smallint"],["FX_FINANC","smallint"],["TP_CALC_MORA","smallint"],["PREST_EMI","smallint"],["PREST_PAG","smallint"],["TX_JUROS","float"],["COB_FCVS","smallint"],["LINCRED","smallint"],["CTA_CTB_SLD","char(20)"],["CTA_CTB_ENC","char(20)"],["FLG_ATIV","smallint"],["CODIGO_SEG","smallint"],["PLANO_SEG","smallint"],["NUMERO_FIF","char(17)"],["CES_COD_CP","int"],["CES_MES_DISS","smallint"],["CES_TIP_REAJ","smallint"],["AM_ENCER_PRV","char(6)"],["DT_ENCER_PRV","char(8)"],["AM_ENCER_REA","char(6)"],["DT_ENCER_REA","char(8)"],["CTR_STC_COD1","char(3)"],["CTR_STC_DTA1","char(8)"],["CTR_STC_COD2","char(3)"],["CTR_STC_DTA2","char(8)"],["CTR_STC_COD3","char(3)"],["CTR_STC_DTA3","char(8)"],["CTR_STC_COD4","char(3)"],["CTR_STC_DTA4","char(8)"],["CTR_STC_COD5","char(3)"],["CTR_STC_DTA5","char(8)"],["IMO_END","char(45)"],["IMO_COMPL","char(15)"],["IMO_BAIRRO","char(15)"],["IMO_CIDADE","char(15)"],["IMO_ESTADO","char(2)"],["IMO_CODCEP","int"],["IMO_SUFCEP","smallint"],["IMO_DDDFONE","smallint"],["IMO_NUMFONE","int"],["IMO_RAMFONE","smallint"],["IMO_QUADRA","char(7)"],["IMO_LOTE","char(7)"],["IMO_BLOCO","char(7)"],["IMO_APTO","char(7)"],["REG_GRUPO","smallint"],["NUC_GRUPO","smallint"],["CTR_GRUPO","char(10)"],["CAD_CTR_VEL","char(12)"],["CODIGOACORDO","int"],["DTULTPRTSEL","char(8)"],["DTEXPCOBRANC","char(8)"],["CODESCCOBR","int"],["FIN_LCOBR","smallint"],["CODMUN_BNH","int"],["SIT_CAD","smallint"],["AM_ULT_PAGA","char(6)"],["NUM_ULT_PAGA","smallint"],["DT_PRI_ATS","char(8)"],["AM_PRI_ATS","char(6)"],["NUM_PRI_ATS","smallint"],["DT_ULT_ATS","char(8)"],["AM_ULT_ATS","char(6)"],["NUM_ULT_ATS","smallint"],["ATS_QTD_PRES","smallint"],["ATS_QTD_DIA","smallint"],["ATS_FX_PCB","smallint"],["ATS_FX_COB","smallint"],["ATS_CART_COB","smallint"],["ATS_VAL_AMJ","float"],["ATS_VAL_RAZ","float"],["ATS_VAL_JUR","float"],["ATS_VAL_TXA1","float"],["ATS_VAL_TXA2","float"],["ATS_VAL_TXA3","float"],["ATS_VAL_FCVS","float"],["ATS_VAL_CC","float"],["ATS_VAL_MORA","float"],["ATS_VAL_SUBS","float"],["ATS_VAL_OUTR","float"],["ATS_COT_FGTS","float"],["ATS_VAL_FGTS","float"],["ATS_SEG_MIP","float"],["ATS_SEG_CRED","float"],["ATS_SEG_DFI","float"],["ATS_VAL_ENC","float"],["ATS_ATU_MON","float"],["ATS_JUR_MORA","float"],["ATS_TOT_ONUS","float"],["ATS_TOTAL","float"],["SALDO_ATUAL","float"],["VAL_ENC_ATU","float"],["DAT_VENC_ATU","char(8)"],["IND_REAJ","float"],["IND_CORR","float"],["CTB_SALD_ANT","float"],["CTB_SALD_ATU","float"],["CTB_97222_AN","float"],["CTB_97222_AT","float"],["CORR_INTEGR","float"],["CORR_PRORAT","float"],["CAN_QTD_PRES","smallint"],["CAN_QTD_DIA","smallint"],["CAN_FX_PCB","smallint"],["CAN_FX_COB","smallint"],["CAN_VAL_AMJ","float"],["CAN_VAL_RAZ","float"],["CAN_VAL_JUR","float"],["CAN_VAL_TXA1","float"],["CAN_VAL_TXA2","float"],["CAN_VAL_TXA3","float"],["CAN_VAL_FCVS","float"],["CAN_VAL_CC","float"],["CAN_VAL_MORA","float"],["CAN_VAL_SUBS","float"],["CAN_VAL_OUTR","float"],["CAN_COT_FGTS","float"],["CAN_VAL_FGTS","float"],["CAN_SEG_MIP","float"],["CAN_SEG_CRED","float"],["CAN_SEG_DFI","float"],["CAN_VAL_ENC","float"],["CAT_QTD_PRES","smallint"],["CAT_QTD_DIA","smallint"],["CAT_FX_PCB","smallint"],["CAT_FX_COB","smallint"],["CAT_VAL_AMJ","float"],["CAT_VAL_RAZ","float"],["CAT_VAL_JUR","float"],["CAT_VAL_TXA1","float"],["CAT_VAL_TXA2","float"],["CAT_VAL_TXA3","float"],["CAT_VAL_FCVS","float"],["CAT_VAL_CC","float"],["CAT_VAL_MORA","float"],["CAT_VAL_SUBS","float"],["CAT_VAL_OUTR","float"],["CAT_COT_FGTS","float"],["CAT_VAL_FGTS","float"],["CAT_SEG_MIP","float"],["CAT_SEG_CRED","float"],["CAT_SEG_DFI","float"],["CAT_VAL_ENC","float"],["EMI_QTD_PRES","smallint"],["EMI_QTD_DIA","smallint"],["EMI_FX_PCB","smallint"],["EMI_FX_COB","smallint"],["EMI_FX_VLENC","smallint"],["EMI_FX_UPF","float"],["EMI_VAL_AMJ","float"],["EMI_VAL_RAZ","float"],["EMI_VAL_JUR","float"],["EMI_VAL_TXA1","float"],["EMI_VAL_TXA2","float"],["EMI_VAL_TXA3","float"],["EMI_VAL_FCVS","float"],["EMI_VAL_CC","float"],["EMI_VAL_MORA","float"],["EMI_VAL_SUBS","float"],["EMI_VAL_OUTR","float"],["EMI_COT_FGTS","float"],["EMI_VAL_FGTS","float"],["EMI_SEG_MIP","float"],["EMI_SEG_CRED","float"],["EMI_SEG_DFI","float"],["EMI_VAL_ENC","float"],["EMI_CARNET","smallint"],["EMI_CARN_MOT","char(120)"],["CTR_ALTER","smallint"],["FLG_SPC_ANT","smallint"],["FLG_SPC_ATU","smallint"],["FLG_ARR","smallint"],["FLG_LCT","smallint"],["FLG_SEG","smallint"],["FLG_EVM","smallint"],["FLG_HIS","smallint"],["FLG_CFG","smallint"],["FLG_CCC","smallint"],["FLG_REC","smallint"],["FLG_AUX1","smallint"],["FLG_AUX2","smallint"],["FLG_AUX3","smallint"],["ACCSEQ","char(17)"],["SIT_CONT","smallint"],["COD_VAF","smallint"],["DIF_LIMINAR","float"],["DIF_DL2065","float"],["DIF_PREST","float"],["DIF_LA_SIN","float"],["DIF_OUTRAS","float"],["INT_RES01","smallint"],["INT_RES02","smallint"],["INT_RES03","smallint"],["DBL_RES01","float"],["DBL_RES02","float"],["DBL_RES03","float"],["STR_RES01","char(150)"],["STR_RES02","char(150)"],["STR_RES03","char(150)"]]},"MTTBLCT":{"d":"Tabela de Lançamentos Contábeis","n":48,"c":[["CodEmp","smallint"],["Data_Comp","char(8)"],["Data_Contab","char(8)"],["Cod_Trans","char(5)"],["Regiao","smallint"],["Nucleo","smallint"],["Contrato","char(10)"],["Data_Evm","char(6)"],["Sit_Contr","char(1)"],["Sit_Prest","char(1)"],["Sit_Pgto","char(1)"],["Aprop_Renda","char(1)"],["Dia_Prorrata","char(2)"],["Mes_Prorrata","char(2)"],["Vl_Saldo","float"],["Vl_Juros","float"],["Vl_Taxa","float"],["Vl_Seg","float"],["Vl_Fcvs","float"],["Vl_Fgts","float"],["Vl_Subs","float"],["Vl_CC","float"],["Vl_IOF","float"],["Vl_JNP","float"],["Vl_AtuMon","float"],["Vl_JURREM","float"],["Vl_Mora","float"],["Vl_Multa","float"],["Vl_Desc","float"],["Vl_Dif_Enc","float"],["Vl_Dif_Mora","float"],["Vl_Tarifa","float"],["Vl_Outr","float"],["Vl_Res1","float"],["Vl_Res2","float"],["Vl_Res3","float"],["Orig_Fin","smallint"],["Lin_Cred","smallint"],["Tipo_Lanc","char(1)"],["Indicativo","char(1)"],["Data_Proc","char(8)"],["Data_Incl","char(8)"],["Hor_Incl","char(8)"],["Seq_Rec","char(8)"],["Seq_Unico","int"],["Data_Fech_Diario","char(8)"],["Data_Proc_Fech_Diario","char(8)"],["INFORM_ARR","varchar(250)"]]}},"relacoes":[{"id":"r1","a":"MTTBHIS","b":"MTTBCON","origem":"chave","estado":"sugerida","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["CODEMP","smallint","CODEMP","smallint"],["REGIAO","smallint","REGIAO","smallint"],["NUCLEO","smallint","NUCLEO","smallint"],["CONTRATO","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r2","a":"MTTBEVM","b":"MTTBCON","origem":"chave","estado":"confirmada","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["CODEMP","smallint","CODEMP","smallint"],["REGIAO","smallint","REGIAO","smallint"],["NUCLEO","smallint","NUCLEO","smallint"],["CONTRATO","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r3","a":"MTTBREC","b":"MTTBCON","origem":"chave","estado":"sugerida","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["CODEMP","smallint","CODEMP","smallint"],["REGIAO","smallint","REGIAO","smallint"],["NUCLEO","smallint","NUCLEO","smallint"],["CONTRATO","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r4","a":"MTTBADQ","b":"MTTBCON","origem":"chave","estado":"confirmada","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["Codemp","smallint","CODEMP","smallint"],["Regiao","smallint","REGIAO","smallint"],["Nucleo","smallint","NUCLEO","smallint"],["Contrato","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r5","a":"MTTBCOP","b":"MTTBCON","origem":"chave","estado":"confirmada","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["CODEMP","smallint","CODEMP","smallint"],["REGIAO","smallint","REGIAO","smallint"],["NUCLEO","smallint","NUCLEO","smallint"],["CONTRATO","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r6","a":"MTTBCOF","b":"MTTBCON","origem":"chave","estado":"sugerida","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["CODEMP","smallint","CODEMP","smallint"],["REGIAO","smallint","REGIAO","smallint"],["NUCLEO","smallint","NUCLEO","smallint"],["CONTRATO","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r7","a":"MTTBBXA","b":"MTTBCON","origem":"chave","estado":"sugerida","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["CODEMP","smallint","CODEMP","smallint"],["REGIAO","smallint","REGIAO","smallint"],["NUCLEO","smallint","NUCLEO","smallint"],["CONTRATO","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r8","a":"MTTBARR","b":"MTTBCON","origem":"chave","estado":"sugerida","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["CODEMP","smallint","CODEMP","smallint"],["REGIAO","smallint","REGIAO","smallint"],["NUCLEO","smallint","NUCLEO","smallint"],["CONTRATO","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r9","a":"MTTBCSG","b":"MTTBCON","origem":"chave","estado":"sugerida","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["CODEMP","smallint","CODEMP","smallint"],["REGIAO","smallint","REGIAO","smallint"],["NUCLEO","smallint","NUCLEO","smallint"],["CONTRATO","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r10","a":"MTTBLCT","b":"MTTBCON","origem":"chave","estado":"sugerida","conf":"alta","evid":"Tem as 4 colunas-chave do contrato (CODEMP, REGIAO, NUCLEO, CONTRATO) com os mesmos tipos de MTTBCON. 177 tabelas do seu banco seguem esse padrão.","papeis":[{"nome":"Contrato","pares":[["CodEmp","smallint","CODEMP","smallint"],["Regiao","smallint","REGIAO","smallint"],["Nucleo","smallint","NUCLEO","smallint"],["Contrato","char(10)","CONTRATO","char(10)"]],"fonte":"Chave composta"}]},{"id":"r11","a":"MTTBCON","b":"MTTBSE1","origem":"doc","estado":"sugerida","conf":"alta","evid":"A documentação de MTTBCON cita a tabela MTTBSE1 em quatro campos, um para cada adquirente.","papeis":[{"nome":"Adquirente 1","pares":[["CODEMP","smallint","CODEMP","smallint"],["ADQ1_CPFCGC","char(14)","CGCCPF","char(14)"]],"fonte":"Documentação: “CPF ou CGC do adquirente principal (Original) (Tabela MTTBSE1)”"},{"nome":"Adquirente 2","pares":[["CODEMP","smallint","CODEMP","smallint"],["ADQ2_CPF","char(11)","CGCCPF","char(14)"]],"fonte":"Documentação: “CPF do segundo adquirente (Tabela MTTBSE1)”"},{"nome":"Adquirente 3","pares":[["CODEMP","smallint","CODEMP","smallint"],["ADQ3_CPF","char(11)","CGCCPF","char(14)"]],"fonte":"Documentação: “CPF do terceiro adquirente (Tabela MTTBSE1)”"},{"nome":"Adquirente 4","pares":[["CODEMP","smallint","CODEMP","smallint"],["ADQ4_CPF","char(11)","CGCCPF","char(14)"]],"fonte":"Documentação: “CPF do quarto adquirente (Tabela MTTBSE1)”"}],"aviso":"CPF (char 11) e CGCCPF (char 14) têm tamanhos diferentes. Confirme a regra de comparação (por exemplo, zeros à esquerda) antes de aprovar."},{"id":"r12","a":"MTTBHIS","b":"MTTBSE1","origem":"doc","estado":"sugerida","conf":"alta","evid":"A documentação de MTTBHIS cita a tabela MTTBSE1 nos campos dos adquirentes (novo número).","papeis":[{"nome":"Adquirente 1","pares":[["CODEMP","smallint","CODEMP","smallint"],["AD1_CGCCPF","char(14)","CGCCPF","char(14)"]],"fonte":"Documentação: “Novo numero do CNPJ/CPF do Adquirente Principal (Tabela MTTBSE1)”"},{"nome":"Adquirente 2","pares":[["CODEMP","smallint","CODEMP","smallint"],["AD2_CPF","char(11)","CGCCPF","char(14)"]],"fonte":"Documentação: “Novo numero do CPF do Adquirente 2 (Tabela MTTBSE1)”"}],"aviso":"CPF (char 11) e CGCCPF (char 14) têm tamanhos diferentes. Confirme a regra de comparação antes de aprovar."},{"id":"r13","a":"MTTBCON","b":"MTTBNUC","origem":"doc","estado":"confirmada","conf":"alta","evid":"A documentação cita a tabela MTTBNUC; o núcleo se completa com empresa e região.","papeis":[{"nome":"Núcleo","pares":[["CODEMP","smallint","CodEmp","smallint"],["REGIAO","smallint","Regiao","smallint"],["NUCLEO","smallint","Codigo","smallint"]],"fonte":"Documentação: “Código do Núcleo Habitacional (Tabela MTTBNUC)”"}],"por":"Aprovada por você"},{"id":"r14","a":"MTTBCON","b":"MTTBSCT","origem":"doc","estado":"sugerida","conf":"alta","evid":"A documentação cita a tabela MTTBSCT em cinco campos de situação do contrato.","papeis":[{"nome":"Situação 1","pares":[["CODEMP","smallint","CodEmp","smallint"],["CTR_STC_COD1","char(3)","Codigo","int"]],"fonte":"Documentação: “Situação do Contrato: Código Situação 1 (Na empresa de retorno do FCVS … Tabela MTTBSCT)”"},{"nome":"Situação 2","pares":[["CODEMP","smallint","CodEmp","smallint"],["CTR_STC_COD2","char(3)","Codigo","int"]],"fonte":"Documentação: “Situação do Contrato: Código Situação 2 (Tabela MTTBSCT)”"},{"nome":"Situação 3","pares":[["CODEMP","smallint","CodEmp","smallint"],["CTR_STC_COD3","char(3)","Codigo","int"]],"fonte":"Documentação: “Situação do Contrato: Código Situação 3 (Tabela MTTBSCT)”"},{"nome":"Situação 4","pares":[["CODEMP","smallint","CodEmp","smallint"],["CTR_STC_COD4","char(3)","Codigo","int"]],"fonte":"Documentação: “Situação do Contrato: Código Situação 4 (Tabela MTTBSCT)”"},{"nome":"Situação 5","pares":[["CODEMP","smallint","CodEmp","smallint"],["CTR_STC_COD5","char(3)","Codigo","int"]],"fonte":"Documentação: “Situação do Contrato: Código Situação 5 (Tabela MTTBSCT)”"}],"aviso":"CTR_STC_COD1..5 são char(3) e MTTBSCT.Codigo é int. O gerador vai precisar converter o tipo no JOIN."},{"id":"r15","a":"MTTBCON","b":"MTTBMUN","origem":"doc","estado":"sugerida","conf":"alta","evid":"A documentação cita a tabela MTTBMUN. O código do município é o do BNH.","papeis":[{"nome":"Município","pares":[["CODMUN_BNH","int","COD_BNH","int"]],"fonte":"Documentação: “Código do Município (Tabela do BNH) (Tabela MTTBMUN)”"}]},{"id":"r16","a":"MTTBCON","b":"MTTBCTF","origem":"doc","estado":"sugerida","conf":"alta","evid":"A documentação cita a tabela MTTBCTF.","papeis":[{"nome":"Categoria","pares":[["CODEMP","smallint","CODEMP","smallint"],["CATEGORIA","smallint","CODCTF","smallint"]],"fonte":"Documentação: “Código da Categoria do Financiamento (Tabela MTTBCTF)”"}]},{"id":"r17","a":"MTTBCON","b":"MTTBMOD","origem":"doc","estado":"sugerida","conf":"alta","evid":"A documentação cita a tabela MTTBMOD.","papeis":[{"nome":"Modalidade","pares":[["CODEMP","smallint","CODEMP","smallint"],["MODALIDADE","smallint","CODMOD","smallint"]],"fonte":"Documentação: “Código da Modalidade do Financiamento (Tabela MTTBMOD)”"}]},{"id":"r18","a":"MTTBCON","b":"MTTBPPF","origem":"doc","estado":"sugerida","conf":"alta","evid":"A documentação cita a tabela MTTBPPF no plano original e no plano atual.","papeis":[{"nome":"Plano original","pares":[["CODEMP","smallint","CODEMP","smallint"],["PLANO_FIN","smallint","CODIGO_PLANO","smallint"]],"fonte":"Documentação: “Plano/Sistema de financiamento (Tabela MTTBPPF)”"},{"nome":"Plano atual","pares":[["CODEMP","smallint","CODEMP","smallint"],["DATU_PLANO","smallint","CODIGO_PLANO","smallint"]],"fonte":"Documentação: “Dados Atuais: Plano/Sistema (Tabela MTTBPPF)”"}]},{"id":"r19","a":"MTTBCON","b":"MTTBPSE","origem":"doc","estado":"sugerida","conf":"media","evid":"A documentação cita a tabela MTTBPSE só pelo plano. A chave de MTTBPSE tem 3 colunas; CODIGO_SEG completa o par de CODSEG pelo nome parecido.","papeis":[{"nome":"Plano original","pares":[["CODEMP","smallint","CODEMP","smallint"],["CODIGO_SEG","smallint","CODSEG","smallint"],["PLANO_SEG","smallint","PLANO_SEG","smallint"]],"fonte":"Documentação: “Plano da Seguradora (Tabela MTTBPSE)”"},{"nome":"Plano atual","pares":[["CODEMP","smallint","CODEMP","smallint"],["DATU_COD_SEG","smallint","CODSEG","smallint"],["DATU_PLA_SEG","smallint","PLANO_SEG","smallint"]],"fonte":"Documentação: “Dados Atuais: Plano da Seguradora (Tabela MTTBPSE)”"}],"aviso":"O par de CODSEG foi deduzido pelo nome. Confira antes de aprovar."},{"id":"r20","a":"MTTBSE1","b":"MTTBPRO","origem":"doc","estado":"sugerida","conf":"alta","evid":"A documentação de MTTBSE1 cita a tabela MTTBPRO nos campos de atividade profissional.","papeis":[{"nome":"Titular","pares":[["ATVPRO","smallint","COD_PROF","smallint"]],"fonte":"Documentação: “ATIVIDADE PROFISSIONAL ou RAMO DE ATIVIDADE …”"},{"nome":"Cônjuge","pares":[["CONJTIT_ATVPRO","smallint","COD_PROF","smallint"]],"fonte":"Documentação: “Atividade Profissional do Cônjuge (PF) ou Titular (PJ)”"}]},{"id":"r21","a":"MTTBCON","b":"MTTBEMP","origem":"nome","estado":"sugerida","conf":"media","evid":"Mesmo nome e mesmo tipo de coluna, e MTTBEMP é o cadastro de empresas. CODEMP existe em 357 tabelas.","papeis":[{"nome":"Empresa","pares":[["CODEMP","smallint","CODEMP","smallint"]],"fonte":"Nome e tipo iguais"}]},{"id":"r22","a":"MTTBCON","b":"MTTBSE1","origem":"manual","estado":"confirmada","conf":"alta","evid":"Ligação criada por você: o contrato de gaveta guarda o CPF de quem ocupa o imóvel.","papeis":[{"nome":"Contrato de gaveta","pares":[["CODEMP","smallint","CODEMP","smallint"],["CPF_GAVETA","char(11)","CGCCPF","char(14)"]],"fonte":"Criada à mão"}],"aviso":"CPF_GAVETA é char(11) e CGCCPF é char(14).","por":"Criada por você"},{"id":"r23","a":"MTTBLURA","b":"MTTBSEG","origem":"fk","estado":"confirmada","conf":"alta","evid":"Chave estrangeira declarada no banco.","papeis":[{"nome":"FK declarada","pares":[["fk_codemp_seg","smallint","CodEmp","smallint"],["fk_codusr_seg","char(8)","CodUsr","char(8)"]],"fonte":"FOREIGN KEY no SQL Server"}]},{"id":"r24","a":"MTTBLURA","b":"MTTBCASS","origem":"fk","estado":"confirmada","conf":"alta","evid":"Chave estrangeira declarada no banco.","papeis":[{"nome":"FK declarada","pares":[["fk_codigo_ass","int","codigo","int"]],"fonte":"FOREIGN KEY no SQL Server"}]},{"id":"r25","a":"MTTBPEMP","b":"MTTBEMP","origem":"fk","estado":"confirmada","conf":"alta","evid":"Chave estrangeira declarada no banco.","papeis":[{"nome":"FK declarada","pares":[["fk_codemp_emp","smallint","CODEMP","smallint"]],"fonte":"FOREIGN KEY no SQL Server"}]}]};
+const T = DATA.tabelas;
+const ORIGEM = { fk: 'FK declarada', doc: 'Documentação', chave: 'Chave composta', nome: 'Nome e tipo', manual: 'Criada por você' };
+const ESTADO = { confirmada: 'Confirmada', sugerida: 'Sugerida', rejeitada: 'Rejeitada' };
+const CONF = { alta: 'Confiança alta', media: 'Confiança média' };
+const STORE = 'rel-proto-v1';
+const ORIG = JSON.parse(JSON.stringify(DATA.relacoes));
+let R = load() || JSON.parse(JSON.stringify(ORIG));
+const S = { focus: 'MTTBCON', hops: 1, sel: null, tab: 'sug', busca: '', f: { fk: true, doc: true, chave: true, nome: true, manual: true, rej: false }, last: null };
+let cy = null, toastTimer = null;
+
+function load() { try { const v = localStorage.getItem(STORE); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function save() { try { localStorage.setItem(STORE, JSON.stringify(R)); } catch (e) { /* sem armazenamento: segue sem persistir */ } }
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const short = (d, n = 26) => (d.length > n ? d.slice(0, n - 1) + '…' : d);
+const npar = (r) => r.papeis.reduce((a, p) => a + p.pares.length, 0);
+
+function visible(r) {
+  if (r.estado === 'rejeitada' && !S.f.rej) return false;
+  return S.f[r.origem] !== false;
+}
+function neighborhood() {
+  const rs = R.filter(visible);
+  const dist = { [S.focus]: 0 };
+  let frontier = [S.focus];
+  for (let h = 1; h <= S.hops; h++) {
+    const next = [];
+    for (const r of rs) for (const [x, y] of [[r.a, r.b], [r.b, r.a]]) {
+      if (frontier.includes(x) && !(y in dist)) { dist[y] = h; next.push(y); }
+    }
+    frontier = next;
+  }
+  const edges = rs.filter((r) => r.a in dist && r.b in dist);
+  return { dist, edges };
+}
+const pend = (t) => R.filter((r) => r.estado === 'sugerida' && (r.a === t || r.b === t)).length;
+
+/* ---------- topo e lista ---------- */
+function renderTop() {
+  const c = R.filter((r) => r.estado === 'confirmada').length, s = R.filter((r) => r.estado === 'sugerida').length, tot = R.filter((r) => r.estado !== 'rejeitada').length || 1;
+  $('#s-conf').textContent = c; $('#s-sug').textContent = s;
+  $('#p-conf').style.width = (c / tot * 100) + '%'; $('#p-sug').style.width = (s / tot * 100) + '%';
+}
+function renderList() {
+  const q = S.busca.trim().toUpperCase();
+  const names = Object.keys(T).filter((n) => !q || n.includes(q) || T[n].d.toUpperCase().includes(q));
+  names.sort((a, b) => (a === S.focus ? -1 : b === S.focus ? 1 : pend(b) - pend(a) || a.localeCompare(b)));
+  $('#tlist').innerHTML = names.map((n) => {
+    const p = pend(n);
+    return `<li><button class="titem" type="button" data-t="${n}" aria-current="${n === S.focus}"><span class="nm">${n}</span>${p ? `<span class="pill" title="${p} aguardando revisão">${p}</span>` : '<span></span>'}<span class="ds">${esc(T[n].d || 'sem documentação')}</span></button></li>`;
+  }).join('') || '<li class="empty">Nenhuma tabela encontrada.</li>';
+}
+
+/* ---------- mapa ---------- */
+function edgeColor(r) { return r.origem === 'fk' ? css('--fk') : r.estado === 'confirmada' ? css('--conf') : r.estado === 'sugerida' ? css('--sug') : css('--line-strong'); }
+function styleSheet() {
+  const ink = css('--node-ink'), node = css('--node'), line = css('--line-strong');
+  return [
+    { selector: 'node', style: { shape: 'round-rectangle', 'background-color': node, 'border-width': 1.5, 'border-color': line, label: 'data(label)', 'text-wrap': 'wrap', 'text-valign': 'center', 'text-halign': 'center', color: ink, 'font-family': css('--font-mono'), 'font-size': 15, width: 'label', height: 'label', padding: '10px', 'text-max-width': 210 } },
+    { selector: 'node.pend', style: { 'border-color': css('--sug'), 'border-width': 2 } },
+    { selector: 'node.focus', style: { 'background-color': css('--focus-fill'), color: css('--focus-ink'), 'border-color': css('--focus-fill'), 'font-size': 16, padding: '16px', 'font-weight': 600, 'text-max-width': 240, 'line-height': 1.3 } },
+    { selector: 'edge', style: { width: 'data(w)', 'line-color': 'data(cor)', 'target-arrow-color': 'data(cor)', 'target-arrow-shape': 'triangle', 'arrow-scale': 1.1, 'curve-style': 'bezier', label: '', 'font-size': 12, color: css('--muted'), 'text-background-color': css('--canvas'), 'text-background-opacity': 1, 'text-background-padding': '2px', 'text-rotation': 'autorotate', opacity: 0.95 } },
+    { selector: 'edge.lab, edge.sel', style: { label: 'data(rot)' } },
+    { selector: 'edge.sug', style: { 'line-style': 'dashed', 'line-dash-pattern': [7, 5] } },
+    { selector: 'edge.rej', style: { 'line-style': 'dotted', opacity: 0.6 } },
+    { selector: 'edge.sel', style: { width: 5, opacity: 1, 'z-index': 99, 'underlay-color': css('--fk'), 'underlay-opacity': 0.16, 'underlay-padding': 6 } },
+  ];
+}
+function renderGraph(fit = true) {
+  const { dist, edges } = neighborhood();
+  const els = [];
+  for (const [t, d] of Object.entries(dist)) {
+    els.push({ data: { id: t, label: t === S.focus ? t + '\n' + short(T[t].d || 'sem documentação', 30) : t, ring: d }, classes: (t === S.focus ? 'focus ' : '') + (pend(t) ? 'pend' : '') });
+  }
+  for (const r of edges) {
+    els.push({ data: { id: r.id, source: r.a, target: r.b, cor: edgeColor(r), w: Math.min(2 + npar(r) * 0.35, 4), rot: r.papeis.length > 1 ? r.papeis.length + ' papéis' : npar(r) + (npar(r) > 1 ? ' colunas' : ' coluna') }, classes: (edges.length <= 8 ? 'lab ' : '') + (r.estado === 'sugerida' ? 'sug ' : '') + (r.estado === 'rejeitada' ? 'rej ' : '') + (S.sel === r.id ? 'sel' : '') });
+  }
+  if (!cy) {
+    cy = cytoscape({ container: $('#cy'), elements: els, style: styleSheet(), wheelSensitivity: 0.25, minZoom: 0.3, maxZoom: 1.25, boxSelectionEnabled: false });
+    cy.on('tap', 'node', (e) => { setFocus(e.target.id()); });
+    cy.on('tap', 'edge', (e) => { select(e.target.id()); });
+    cy.on('tap', (e) => { if (e.target === cy) { S.sel = null; cy.edges().removeClass('sel'); if (S.tab === 'det') renderPanel(); } });
+    cy.on('mouseover', 'node', (e) => {
+      $('#cy').style.cursor = 'pointer';
+      const id = e.target.id(), tip = $('#tip'), p = e.target.renderedPosition(), c = $('#cy');
+      tip.innerHTML = `<b>${id}</b>${esc(T[id].d || 'Sem documentação')} · ${T[id].n} campos`;
+      tip.hidden = false;
+      tip.style.left = Math.min(Math.max(p.x + c.offsetLeft - 20, 8), c.offsetLeft + c.clientWidth - 240) + 'px';
+      tip.style.top = (p.y + c.offsetTop + 22) + 'px';
+    });
+    cy.on('mouseout', 'node', () => { $('#cy').style.cursor = 'default'; $('#tip').hidden = true; });
+  } else {
+    cy.json({ elements: els }); cy.style(styleSheet());
+  }
+  const pos = posicoes(dist, edges);
+  cy.layout({ name: 'preset', positions: (n) => pos[n.id()], fit, padding: 28, animate: false }).run();
+  const f = T[S.focus];
+  $('#cur').innerHTML = `<span class="mono">${S.focus}</span><small>${esc(f.d || 'sem documentação')} · ${edges.length} ligações</small>`;
+  const cyEl = $('#cy'); cyEl.setAttribute('aria-label', `Mapa de relacionamentos de ${S.focus}: ${edges.length} ligações`);
+}
+
+/* Posiciona o mapa: a tabela central no meio; à esquerda as que ela consulta (destino da FK),
+   à direita as que a consultam (origem da FK). Segundo anel: perto da vizinha a que se ligam. */
+function posicoes(dist, edges) {
+  const w = $('#cy').clientWidth || 800, h = $('#cy').clientHeight || 600;
+  const rx = w * 0.34, ry = h * 0.36, pos = { [S.focus]: { x: 0, y: 0 } }, ang = {};
+  const pais = [], filhas = [];
+  for (const r of edges) {
+    if (r.a === S.focus && dist[r.b] === 1) pais.push(r.b); else if (r.b === S.focus && dist[r.a] === 1) filhas.push(r.a);
+  }
+  const uniq = (l) => [...new Set(l)].sort();
+  const lado = (lista, centro) => {
+    const n = lista.length, abre = Math.min(150, Math.max(30, n * 17)) * Math.PI / 180;
+    lista.forEach((t, i) => {
+      const a = centro + (n === 1 ? 0 : (i / (n - 1) - 0.5) * abre), esc2 = n > 9 && i % 2 ? 0.8 : 1;
+      ang[t] = a; pos[t] = { x: Math.cos(a) * rx * esc2, y: Math.sin(a) * ry * esc2 };
+    });
+  };
+  lado(uniq(pais).filter((t) => !filhas.includes(t)), Math.PI); lado(uniq(filhas).filter((t) => !pais.includes(t)), 0);
+  const ambos = uniq(pais.filter((t) => filhas.includes(t)));
+  ambos.forEach((t, i) => { const a = -Math.PI / 2 + (i - (ambos.length - 1) / 2) * 0.5; ang[t] = a; pos[t] = { x: Math.cos(a) * rx * 0.7, y: Math.sin(a) * ry * 0.95 }; });
+  let k = 0;
+  for (const [t, d] of Object.entries(dist)) {
+    if (d < 2) continue;
+    const viz = edges.find((r) => (r.a === t && dist[r.b] === 1) || (r.b === t && dist[r.a] === 1));
+    const u = viz ? (viz.a === t ? viz.b : viz.a) : null, a = (u && ang[u] !== undefined ? ang[u] : 0) + ((k++ % 3) - 1) * 0.22;
+    pos[t] = { x: Math.cos(a) * rx * 1.42, y: Math.sin(a) * ry * 1.42 };
+  }
+  return pos;
+}
+
+/* ---------- painel direito ---------- */
+function badgeOrigem(r) { return `<span class="badge b-${r.origem}">${ORIGEM[r.origem]}</span>`; }
+function badgeEstado(r) { return `<span class="badge ${r.estado === 'confirmada' ? 'b-conf' : r.estado === 'sugerida' ? 'b-sug' : 'b-rej'}">${ESTADO[r.estado]}</span>`; }
+function actions(r, big) {
+  if (r.estado === 'sugerida') return `<div class="acts"><button class="btn ok" data-act="ok" data-id="${r.id}" type="button">Aprovar</button><button class="btn" data-act="no" data-id="${r.id}" type="button">Rejeitar</button>${big ? '' : `<button class="btn ghost" data-act="ver" data-id="${r.id}" type="button">Ver colunas</button>`}</div>`;
+  if (r.estado === 'rejeitada') return `<div class="acts"><button class="btn" data-act="re" data-id="${r.id}" type="button">Voltar a sugerida</button></div>`;
+  return `<div class="acts"><button class="btn" data-act="re" data-id="${r.id}" type="button">Voltar a sugerida</button>${r.origem === 'manual' ? `<button class="btn danger" data-act="del" data-id="${r.id}" type="button">Excluir</button>` : ''}</div>`;
+}
+function tipoAviso(p) { return p[1] !== p[3] ? `<span class="tw">tipos diferentes: ${esc(p[1])} → ${esc(p[3])}</span>` : `<span class="t">${esc(p[1])}</span>`; }
+function renderSug() {
+  const { edges } = neighborhood();
+  const list = edges.filter((r) => r.estado === 'sugerida').sort((a, b) => (a.conf === b.conf ? 0 : a.conf === 'alta' ? -1 : 1) || a.a.localeCompare(b.a));
+  const altas = list.filter((r) => r.conf === 'alta' && !r.aviso);
+  let h = list.length ? `<button class="btn primary" data-act="lote" type="button" ${altas.length ? '' : 'disabled'}>Aprovar as ${altas.length} de confiança alta e sem alerta</button><div class="kicker">Aguardando você · ${list.length}</div>` : '';
+  h += list.map((r) => `<div class="card ${S.sel === r.id ? 'on' : ''}" data-id="${r.id}"><div class="row"><span class="ttl">${r.a} → ${r.b}</span></div><div class="row">${badgeOrigem(r)}<span class="badge b-${r.conf}">${CONF[r.conf]}</span><span class="badge b-doc" style="background:var(--surface-2);color:var(--muted)">${npar(r)} col · ${r.papeis.length > 1 ? r.papeis.length + ' papéis' : 'N:1'}</span></div><div class="why">${esc(r.evid)}</div>${r.aviso ? `<div class="aviso"><span aria-hidden="true">!</span><span>${esc(r.aviso)}</span></div>` : ''}${actions(r)}</div>`).join('');
+  if (!list.length) h = '<div class="empty">Nada aguardando revisão neste mapa.<br>Mude a tabela ou os filtros para ver outras ligações.</div>';
+  return h;
+}
+function renderDet() {
+  const r = R.find((x) => x.id === S.sel);
+  if (!r) {
+    const t = T[S.focus], out = R.filter((x) => x.a === S.focus && x.estado !== 'rejeitada'), inn = R.filter((x) => x.b === S.focus && x.estado !== 'rejeitada');
+    return `<div><div class="kicker">Tabela</div><h3 class="mono" style="font-size:15px">${S.focus}</h3><p style="margin:.3rem 0 0;color:var(--muted)">${esc(t.d || 'Sem documentação. Importe a documentação ou descreva a tabela na revisão.')}</p></div>
+      <dl class="kv"><dt>Campos</dt><dd>${t.n}</dd><dt>Aponta para</dt><dd>${out.length} tabelas</dd><dt>É apontada por</dt><dd>${inn.length} tabelas</dd><dt>Aguardando</dt><dd>${pend(S.focus)} ligações</dd></dl>
+      <div class="empty" style="padding:10px 0">Clique numa linha do mapa ou num cartão de sugestão para ver as colunas de cada ligação.</div>`;
+  }
+  const pap = r.papeis.map((p) => `<section class="papel"><header>${esc(p.nome)}<span>${p.pares.length} ${p.pares.length > 1 ? 'pares' : 'par'}</span></header><table class="pares">${p.pares.map((q) => `<tr><td><span class="mono">${r.a}.${esc(q[0])}</span>${tipoAviso(q)}</td><td class="ar" aria-hidden="true">→</td><td><span class="mono">${r.b}.${esc(q[2])}</span><span class="t">${esc(q[3])}</span></td></tr>`).join('')}</table><div class="src">${esc(p.fonte)}</div></section>`).join('');
+  return `<div class="row" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><h3 class="mono" style="font-size:14px;overflow-wrap:anywhere">${r.a} → ${r.b}</h3></div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${badgeEstado(r)}${badgeOrigem(r)}<span class="badge b-${r.conf}">${CONF[r.conf]}</span></div>
+    <div class="ev">${esc(r.evid)}</div>${r.aviso ? `<div class="aviso"><span aria-hidden="true">!</span><span>${esc(r.aviso)}</span></div>` : ''}
+    <dl class="kv"><dt>Cardinalidade</dt><dd>N:1 (${r.a} tem vários por ${r.b})</dd><dt>Colunas</dt><dd>${npar(r)} em ${r.papeis.length} ${r.papeis.length > 1 ? 'papéis' : 'papel'}</dd>${r.por ? `<dt>Origem</dt><dd>${esc(r.por)}</dd>` : ''}</dl>
+    ${pap}${actions(r, true)}`;
+}
+function renderNew() {
+  const opts = Object.keys(T).map((n) => `<option value="${n}">`).join('');
+  $('#dl-a').innerHTML = opts; $('#dl-b').innerHTML = opts;
+  return `<p style="margin:0;color:var(--muted)">Crie uma ligação que o sistema não encontrou. Ela entra já confirmada.</p>
+    <div class="field"><label for="n-a">Tabela de origem (o lado “N”)</label><input id="n-a" list="dl-a" value="${S.focus}" autocomplete="off"></div>
+    <div class="field"><label for="n-b">Tabela de destino (o lado “1”)</label><input id="n-b" list="dl-b" placeholder="ex.: MTTBSE1" autocomplete="off"></div>
+    <div class="field"><label for="n-p">Nome do papel</label><input id="n-p" placeholder="ex.: Contrato de gaveta" autocomplete="off"></div>
+    <div class="kicker">Colunas que se correspondem</div>
+    <div id="n-pares" style="display:flex;flex-direction:column;gap:6px"></div>
+    <datalist id="dl-ca"></datalist><datalist id="dl-cb"></datalist>
+    <div style="display:flex;gap:6px"><button class="btn" id="n-add" type="button">Adicionar par</button><button class="btn ok" id="n-go" type="button">Criar ligação</button></div>
+    <div class="aviso" id="n-msg" hidden></div>`;
+}
+function fillCols() {
+  const a = $('#n-a'), b = $('#n-b'); if (!a) return;
+  const opt = (t) => (T[t] ? T[t].c.map((c) => `<option value="${esc(c[0])}">${esc(c[1])}</option>`).join('') : '');
+  $('#dl-ca').innerHTML = opt(a.value.toUpperCase()); $('#dl-cb').innerHTML = opt(b.value.toUpperCase());
+}
+function addPar(x = '', y = '') {
+  const d = document.createElement('div'); d.className = 'prow';
+  d.innerHTML = `<input list="dl-ca" placeholder="coluna de origem" value="${esc(x)}" aria-label="Coluna de origem"><input list="dl-cb" placeholder="coluna de destino" value="${esc(y)}" aria-label="Coluna de destino"><button class="btn ghost" type="button" aria-label="Remover par">×</button>`;
+  d.querySelector('button').onclick = () => d.remove();
+  $('#n-pares').appendChild(d);
+}
+function renderPanel() {
+  document.querySelectorAll('.tabs [role=tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
+  const { edges } = neighborhood();
+  $('#n-sug').textContent = edges.filter((r) => r.estado === 'sugerida').length;
+  const body = $('#body');
+  body.innerHTML = S.tab === 'sug' ? renderSug() : S.tab === 'det' ? renderDet() : renderNew();
+  if (S.tab === 'new') {
+    addPar('CODEMP', 'CODEMP'); fillCols();
+    $('#n-a').oninput = fillCols; $('#n-b').oninput = fillCols;
+    $('#n-add').onclick = () => addPar();
+    $('#n-go').onclick = createManual;
+  }
+}
+function createManual() {
+  const a = $('#n-a').value.toUpperCase().trim(), b = $('#n-b').value.toUpperCase().trim(), nome = $('#n-p').value.trim() || 'Ligação manual';
+  const msg = $('#n-msg'); const fail = (t) => { msg.hidden = false; msg.textContent = t; };
+  if (!T[a] || !T[b]) return fail('Escolha duas tabelas da lista.');
+  if (a === b) return fail('Origem e destino devem ser tabelas diferentes.');
+  const pares = [];
+  for (const row of document.querySelectorAll('#n-pares .prow')) {
+    const [x, y] = [...row.querySelectorAll('input')].map((i) => i.value.trim());
+    if (!x && !y) continue;
+    const cx = T[a].c.find((c) => c[0].toUpperCase() === x.toUpperCase()), cy2 = T[b].c.find((c) => c[0].toUpperCase() === y.toUpperCase());
+    if (!cx || !cy2) return fail(`Coluna não encontrada: ${!cx ? a + '.' + x : b + '.' + y}.`);
+    pares.push([cx[0], cx[1], cy2[0], cy2[1]]);
+  }
+  if (!pares.length) return fail('Informe ao menos um par de colunas.');
+  const dif = pares.some((p) => p[1] !== p[3]);
+  R.push({ id: 'm' + Date.now(), a, b, origem: 'manual', estado: 'confirmada', conf: 'alta', evid: 'Ligação criada por você neste protótipo.', por: 'Criada por você', papeis: [{ nome, pares, fonte: 'Criada à mão' }], ...(dif ? { aviso: 'Alguns pares têm tipos diferentes. O gerador precisará converter no JOIN.' } : {}) });
+  save(); S.focus = a; S.sel = R[R.length - 1].id; S.tab = 'det'; refresh(); toast('Ligação criada e confirmada.');
+}
+
+/* ---------- ações ---------- */
+function setEstado(id, estado, msg) {
+  const r = R.find((x) => x.id === id); if (!r) return;
+  S.last = { id, estado: r.estado }; r.estado = estado; save(); refresh(); toast(msg, true);
+}
+function select(id) { S.sel = id; S.tab = 'det'; if (cy) { cy.edges().removeClass('sel'); cy.getElementById(id).addClass('sel'); } renderPanel(); }
+function setFocus(t) { S.focus = t; S.sel = null; refresh(true); }
+function refresh(fit = true) { renderTop(); renderList(); renderGraph(fit); renderPanel(); }
+function toast(msg, undo) {
+  const el = $('#toast'); el.hidden = false; el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button" id="undo">Desfazer</button>' : ''}`;
+  if (undo) $('#undo').onclick = () => { if (S.last) { const r = R.find((x) => x.id === S.last.id); if (r) { r.estado = S.last.estado; save(); refresh(false); } } el.hidden = true; };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 5000);
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-t]'); if (t) return setFocus(t.dataset.t);
+  const tab = e.target.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; return renderPanel(); }
+  const hp = e.target.closest('[data-hops]'); if (hp) { S.hops = +hp.dataset.hops; document.querySelectorAll('[data-hops]').forEach((b) => b.setAttribute('aria-pressed', String(b === hp))); return refresh(); }
+  const a = e.target.closest('[data-act]');
+  if (a) {
+    const id = a.dataset.id;
+    if (a.dataset.act === 'ok') return setEstado(id, 'confirmada', 'Ligação aprovada.');
+    if (a.dataset.act === 'no') return setEstado(id, 'rejeitada', 'Ligação rejeitada.');
+    if (a.dataset.act === 're') return setEstado(id, 'sugerida', 'Voltou para as sugestões.');
+    if (a.dataset.act === 'ver') return select(id);
+    if (a.dataset.act === 'del') { R = R.filter((x) => x.id !== id); S.sel = null; S.tab = 'sug'; save(); refresh(false); return toast('Ligação excluída.'); }
+    if (a.dataset.act === 'lote') {
+      const { edges } = neighborhood(); const alvo = edges.filter((r) => r.estado === 'sugerida' && r.conf === 'alta' && !r.aviso);
+      alvo.forEach((r) => { r.estado = 'confirmada'; }); save(); refresh(false); return toast(`${alvo.length} ligações aprovadas.`);
+    }
+  }
+  const card = e.target.closest('.card[data-id]'); if (card) select(card.dataset.id);
+});
+$('#busca').addEventListener('input', (e) => { S.busca = e.target.value; renderList(); });
+$('#fit').addEventListener('click', () => cy && cy.fit(undefined, 30));
+$('#reset').addEventListener('click', () => { R = JSON.parse(JSON.stringify(ORIG)); S.sel = null; save(); refresh(); toast('Exemplo reiniciado.'); });
+for (const k of Object.keys(S.f)) $('#f-' + k).addEventListener('change', (e) => { S.f[k] = e.target.checked; refresh(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => refresh(false));
+new MutationObserver(() => refresh(false)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+refresh();
+</script>
